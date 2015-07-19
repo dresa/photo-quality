@@ -1,7 +1,10 @@
 package photo;
 
+import util.Tools;
+
 public class Pixel {
 	public static int toARGB(int a, int r, int g, int b) {
-		return (a << 24) + (r << 16)  + (g << 8) + b;
+		int m = Tools.MASK_8_BIT;
+		return ((a&m) << 24) + ((r&m) << 16)  + ((g&m) << 8) + (b&m);
 	}
 }

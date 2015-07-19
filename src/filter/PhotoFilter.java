@@ -1,7 +1,8 @@
 package filter;
 
+import photo.Channel;
 import photo.Photo;
 
 public interface PhotoFilter {
-	Photo filter(Photo p);
+	Channel filter(Photo p);
 }

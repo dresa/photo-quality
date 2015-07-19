@@ -4,19 +4,15 @@
 package photo;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
 
-import javax.swing.*;
+import javax.imageio.ImageIO;
 
 import util.Tools;
 import viewer.PhotoViewer;
-
-import java.awt.BorderLayout;
-import javax.imageio.ImageIO;
-import java.awt.image.DataBufferByte;
 
 /**
  * Pixels in a photograph: 2-dimensional raster.

@@ -9,11 +9,11 @@ import java.net.URL;
 import javax.imageio.ImageIO;
 
 import util.Tools;
-import viewer.PhotoViewer;
 
-public class PhotoSimple {
+public class PhotoARGB implements Photo {
+	public enum ChannelType { ALPHA, RED, GREEN, BLUE }
+
 	private static final int NO_TRANSPARENCY = 255;
-	private static final int MASK_8_BIT = 0xff;
 
 	private final int width;
 	private final int height;
@@ -22,19 +22,19 @@ public class PhotoSimple {
 	private ChannelByte blues;
 	private ChannelByte alphas;
 
-	public PhotoSimple(String filename) throws IOException {
+	public PhotoARGB(String filename) throws IOException {
 		this(new File(filename));
 	}
 
-	public PhotoSimple(File f) throws IOException {
+	public PhotoARGB(File f) throws IOException {
 		this(ImageIO.read(f));
 	}
 
-	public PhotoSimple(URL url) throws IOException {
+	public PhotoARGB(URL url) throws IOException {
 		this(ImageIO.read(url));
 	}
 
-	public PhotoSimple(BufferedImage img) throws IOException {
+	public PhotoARGB(BufferedImage img) throws IOException {
 		int type = img.getType(); 
 		if (type != BufferedImage.TYPE_3BYTE_BGR) 
 			throw new RuntimeException("Unsupported image color type: " + type);
@@ -57,10 +57,10 @@ public class PhotoSimple {
 			for (int col = 0; col < width; col++) {
 				// Signed bytes to unsigned ints: (for example -1 translates to 255).
 				// Assumes (A)BGR ordering.
-				byte a = (byte) (alphaExists ? pixels[p++] & MASK_8_BIT : NO_TRANSPARENCY);  // alpha
-				byte b = (byte) (pixels[p++] & MASK_8_BIT);  // blue 
-				byte g = (byte) (pixels[p++] & MASK_8_BIT);  // green
-				byte r = (byte) (pixels[p++] & MASK_8_BIT);  // red
+				byte a = (byte) (alphaExists ? pixels[p++] & Tools.MASK_8_BIT : NO_TRANSPARENCY);  // alpha
+				byte b = (byte) (pixels[p++] & Tools.MASK_8_BIT);  // blue 
+				byte g = (byte) (pixels[p++] & Tools.MASK_8_BIT);  // green
+				byte r = (byte) (pixels[p++] & Tools.MASK_8_BIT);  // red
 				int argbColor = Pixel.toARGB(a, r, g, b);
 				argbArray[row][col] = argbColor;
 				alphaArray[row][col] = a;
@@ -75,7 +75,7 @@ public class PhotoSimple {
 		this.blues = new ChannelByte(blueArray);
 	}
 
-	public PhotoSimple(ChannelByte alpha, ChannelByte red, ChannelByte green, ChannelByte blue) throws IOException {
+	public PhotoARGB(ChannelByte alpha, ChannelByte red, ChannelByte green, ChannelByte blue) throws IOException {
 		Dim aDim = alpha.getDimensions();
 		Dim rDim = red.getDimensions();
 		Dim gDim = green.getDimensions();
@@ -93,34 +93,31 @@ public class PhotoSimple {
 		this.blues = blue;
 	}
 
+	public ChannelByte getChannel(ChannelType type) {
+		switch (type) {
+			case ALPHA: return alphas;
+			case RED: return reds;
+			case GREEN: return greens;
+			case BLUE: return blues;
+			default:
+				throw new IllegalArgumentException("Invalid ARGB channel: " + type);
+		}
+	}
+
 	public BufferedImage toImage() {
 		BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		int[][] argb = Tools.deriveARGB(alphas.getValues(), reds.getValues(), greens.getValues(), blues.getValues());
+		int[][] argb = Tools.deriveARGB(alphas.getBytes(), reds.getBytes(), greens.getBytes(), blues.getBytes());
 		img.setRGB(0, 0, width, height, Tools.toArray1D(argb), 0, width);
 		return img;
 	}
 
-	public void savePNG(String filename) throws IOException {
-	    ImageIO.write(toImage(), "png", new File(filename));		
-	}
-
-	public void saveJPG(String filename) throws IOException {
-		// FIXME: there is a bug with false colors in JPG file
-		// that shows correctly on the screen
-	    ImageIO.write(toImage(), "jpg", new File(filename));		
-	}
-
-	// Test method for development.
-	public static void main(String[] args) throws IOException {
-		if (args.length == 1) {
-			String filename = args[0];
-			PhotoBasic p = new PhotoBasic(filename);
-			PhotoViewer.view(p);
-			p.savePNG("saved.png");
-			//p.saveJPG("saved.jpg");
-		}
-		else {
-			System.err.println("Usage: java PhotoBasic <filename>");
-		}
+	public String toString() {
+		return
+			"PhotoARGB(w="+width+", h="+height+"):\n" +
+			"  alpha=" + alphas + "\n" +
+			"    red=" + reds + "\n" +
+			"  green=" + greens + "\n" +
+			"   blue=" + blues + "\n" +
+			")";
 	}
 }

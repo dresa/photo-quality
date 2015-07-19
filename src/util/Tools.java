@@ -1,10 +1,15 @@
 package util;
 
-import java.io.PrintWriter;
+import java.io.PrintStream;
+import java.util.Formatter;
+import java.util.Locale;
 
 import photo.Pixel;
 
 public final class Tools {
+	public static final int MASK_8_BIT = 0xff;  // FIXME: move somewhere
+	public static final byte NO_TRANSPARENCY = (byte) 255;  // = -1
+
 	public static byte[] toArray1D(byte[][] src) {
 		final int height = src.length;
 		final int width = src[0].length;
@@ -45,6 +50,28 @@ public final class Tools {
 		}
 		return target;
 	}
+	public static float[][] toFloatArray2D(byte[][] src) {
+	    int numRows = src.length;
+	    int numCols = src[0].length;
+	    float[][] target = new float[numRows][numCols];
+	    for (int row = 0; row < numRows; row++) {
+		    for (int col = 0; col < numCols; col++) {
+		    	target[row][col] = src[row][col] & Tools.MASK_8_BIT;
+		    }
+	    }
+	    return target;
+	}
+	public static float[][] toFloatArray2D(int[][] src) {
+	    int numRows = src.length;
+	    int numCols = src[0].length;
+	    float[][] target = new float[numRows][numCols];
+	    for (int row = 0; row < numRows; row++) {
+		    for (int col = 0; col < numCols; col++) {
+		    	target[row][col] = src[row][col];
+		    }
+	    }
+	    return target;
+	}
 	public static byte[] copy1DArray(byte[] src) {
 	    int n = src.length;
 	    byte[] target = new byte[n];
@@ -67,17 +94,51 @@ public final class Tools {
 	    }
 	    return target;
 	}
-	public static void write2DArray(int[][] array, PrintWriter pw) {
+	public static float[][] copy2DArray(float[][] src) {
+	    int length = src.length;
+	    float[][] target = new float[length][src[0].length];
+	    for (int i = 0; i < length; i++) {
+	        System.arraycopy(src[i], 0, target[i], 0, src[i].length);
+	    }
+	    return target;
+	}
+	public static void write2DArray(int[][] array, PrintStream ps) {
 		int height = array.length;
 		for (int r=0; r<height; r++) {
 			int width = array[r].length;
 			for (int c=0; c<width; c++) {
-				pw.print(array[r][c] + " ");
+				ps.print(array[r][c] + " ");
 			}
-			pw.println();
+			ps.println();
 		}
 	}
-
+	public static void write2DArray(byte[][] array, PrintStream ps) {
+		int height = array.length;
+		int width = array[0].length;
+		StringBuilder sb = new StringBuilder();
+		Formatter form = new Formatter(sb, Locale.US);
+		sb.append("ChannelBytes(w="+width+", h="+height+"):\n");
+		for (int row = 0; row < height; row++) {
+			for (int col = 0; col < width; col++) {
+				byte v = array[row][col];
+				form.format("%4d", v).toString();
+				if ( !(col == width-1 && row == height-1) ) sb.append(", ");
+				if (col == width-1) sb.append('\n');
+			}
+		}
+		form.close();
+		ps.print(sb.toString());
+	}
+	public static void write2DArray(float[][] array, PrintStream ps) {
+		int height = array.length;
+		for (int r=0; r<height; r++) {
+			int width = array[r].length;
+			for (int c=0; c<width; c++) {
+				ps.print((int)Math.round(array[r][c]) + " ");  // FIXME: toInt
+			}
+			ps.println();
+		}
+	}
 	public static int[][] deriveARGB(byte[][] a, byte[][] r, byte[][] g, byte[][] b) {
 		final int numRows = r.length;
 		final int numCols = r[0].length;
@@ -90,4 +151,17 @@ public final class Tools {
 		}
 		return argb;
 	}
+
+	public static byte[][] roundToByte(float[][] src) {
+		int numRows = src.length;
+		int numCols = src[0].length;
+		byte[][] target = new byte[numRows][numCols];
+		for (int row = 0; row < numRows; row++) {
+			for (int col= 0; col< numCols; col++) {
+				target[row][col] = (byte) Math.round(src[row][col]);
+			}
+		}
+		return target;
+	}
+
 }
