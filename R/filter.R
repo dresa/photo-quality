@@ -1,6 +1,15 @@
+#
+# Quality measures for photographs: no-reference analysis of aesthetic features
+# Author: Esa Junttila
+# 
+
 library(jpeg)  # function 'readJPG' to read JPEG files
 library(png)   # function 'readPNG' to read PNG files
 library(grid)  # function 'grid.raster' to view images
+
+###########
+## IMAGE ##
+###########
 
 # Color channel identifiers:
 RED <- list(idx=1, name='RED')
@@ -25,6 +34,73 @@ readImage <- function(filename) {
 # Return a matrix that represents channel 'col.channel' of image 'img'.
 extractChannel <- function(img, col.channel) img[ , , col.channel$idx]
 
+
+#############
+## VIEWING ##
+#############
+
+# Open a new window that shows given RGB image 'img'.
+#   <img>: a single color channel (matrix with dim (h,w)) OR
+#          an RGB image with red, green and blue channels (array with dim (h,w,3))
+#  <size>: size of the minimum window axis (height or width), for example 4
+# <title>: string in the window title
+# Examples:
+#   view(matrix(1/(1:24), nrow=6))
+#   view(array(runif(1/(1:72)), dim=c(6,4,3)))
+view <- function(img, size=4, title='Image') {
+  dims <- dim(img)
+  img.h <- dims[1]
+  img.w <- dims[2]
+  win.h <- if (img.h <= img.w) size else size * img.h/img.w
+  win.w <- if (img.w <= img.h) size else size * img.w/img.h
+  dev.new(width=win.w, height=win.h, title=title)
+  grid.raster(img, interpolate=FALSE)
+}
+
+
+#############
+## FILTERS ##
+#############
+
+meanFilter <- function(size) {
+  if (!(size%%2)) stop('even filter size not possible at the moment')
+  f <- matrix(1/(size*size), nrow=size, ncol=size)
+  return(f)
+}
+
+gaussianFilter1D <- function(n, sigma, as.row=FALSE) {
+  variance <- sigma^2
+  # Due to normalization, we can omit constants from Gaussian:
+  #   1/(sqrt(2*pi)*sigma)*exp(-x^2/(2*sigma^2))
+  # This method simply uses the midpoints of the "pixels", which neglects non-linear shapes.
+  # Points: -n, -(n-1), ..., 0, 1, 2, ..., n
+  pos.indices <- 1:n  # symmetric (and g(0)=1), so only positive points need to be computed
+  vals <- exp(-pos.indices^2/(2*variance))  # note that function value at 0 is 1
+  m <- matrix(c(rev(vals), 1, vals) / (2*sum(vals)+1))  # reversed, zero-point, values: normalize such that sum=1.0
+  return(if (as.row) t(m) else m)
+}
+
+# For testing purposes. A more efficient method of applying two 1D filters exists.
+gaussianFilter2D <- function(n, sigma) {
+  variance <- sigma^2
+  # Due to normalization, we can omit constants from Gaussian:
+  #   1/(2*pi*sigma^2)*exp(-(x^2+y^2)/(2*sigma^2))
+  # This method simply uses the midpoints of the "pixels", which neglects non-linear shapes.
+  indices <- -n:n
+  idx.grid <- expand.grid(indices, indices)
+  x <- idx.grid$Var1
+  y <- idx.grid$Var2
+  vals <- exp(-(x^2+y^2)/(2*variance))
+  vals <- vals / sum(vals)  # normalize such that sum=1.0
+  m <- matrix(vals, nrow=length(indices))
+  return(m)
+}
+
+
+
+#################
+## CONVOLUTION ##
+#################
 
 # Extend arrays by given amounts, with values generating according to 'pad'
 # pad: numeric value, 'circular', 'replicate', or 'symmetric'
@@ -169,8 +245,6 @@ conv2 <- function(mat, f, shape='same') {
 #}
 
 
-
-
 # Image filter
 # Simplified from: http://www.makalab.org/ojb/imfilter.m
 # Example (http://www.songho.ca/dsp/convolution/convolution2d_example.html):
@@ -180,7 +254,7 @@ conv2 <- function(mat, f, shape='same') {
 #     [1,]  -13  -20  -17
 #     [2,]  -18  -24  -18
 #     [3,]   13   20   17
-imfilter <- function(img, f, pad=0) {
+imfilter <- function(img, f, pad=0, fft=FALSE) {
   dims <- dim(img)
   h <- dims[1]
   w <- dims[2]
@@ -192,31 +266,39 @@ imfilter <- function(img, f, pad=0) {
   src = padarray(arr, floor(c(m/2, n/2)), pad);
   res <- array(dim=c(h,w,nchannels))
   for (ch in 1:nchannels) {
-    #mat <- conv2(src[ , , ch, drop=TRUE], f)  # direct convolution
-    mat <- conv2dFFT(src[ , , ch, drop=TRUE], f, dim(res[,,ch]))  # Fast Fourier Transform (2D convolution)
+    if (fft) {
+      mat <- conv2dFFT(src[ , , ch, drop=TRUE], f, dim(res[,,ch]))  # Fast Fourier Transform (2D convolution)
+    } else {
+      mat <- conv2(src[ , , ch, drop=TRUE], f)  # direct convolution
+    }
     res[ , , ch] <- pmax(0, pmin(1, mat))
   }
   return(res)
 }
 
 
+####################
+## DERIVED IMAGES ##
+####################
 
-# Open a new window that shows given RGB image 'img'.
-#   <img>: a single color channel (matrix with dim (h,w)) OR
-#          an RGB image with red, green and blue channels (array with dim (h,w,3))
-#  <size>: size of the minimum window axis (height or width), for example 4
-# <title>: string in the window title
-# Examples:
-#   view(matrix(1/(1:24), nrow=6))
-#   view(array(runif(1/(1:72)), dim=c(6,4,3)))
-view <- function(img, size=4, title='Image') {
-  dims <- dim(img)
-  img.h <- dims[1]
-  img.w <- dims[2]
-  win.h <- if (img.h <= img.w) size else size * img.h/img.w
-  win.w <- if (img.w <= img.h) size else size * img.w/img.h
-  dev.new(width=win.w, height=win.h, title=title)
-  grid.raster(img, interpolate=FALSE)
+# Simplified blur image (might be incorrectly understood)
+meanBlurred <- function(img, size=3) {
+  f <- meanFilter(size)
+  blurred <- imfilter(img, f, 'replicate')
+  return(blurred)
+}
+
+gaussianBlurred <- function(img, sigma) {
+  # Gaussian blur is separable: combining vertical and horizontal 1D convolutions
+  # gives the same outcome as using a single 2D convolution.
+  n <- as.integer(ceiling(3*sigma))  # n pixels to left, up, right, and down
+  #gf2D <- gaussianFilter2D(n, sigma)  # Slower direct 2D method for testing
+  #blurred <- imfilter(img, gf2D, 'replicate')
+  #return(blurred)
+  gf1D <- gaussianFilter1D(n, sigma)                # (vertical) 1D Gaussian blur
+  img.vert <- imfilter(img, gf1D, 'replicate')      # apply vertical blur
+  img.vert.horiz <- imfilter(img.vert, t(gf1D), 'replicate')  # apply horizontal blur
+  return(img.vert.horiz)
 }
 
 # CIE 1931 linear luminance Y
@@ -239,15 +321,6 @@ view <- function(img, size=4, title='Image') {
 # I'm not sure whether gamma correction should be applied here.
 luminance <- function(img) 0.212673*img[,,RED$idx] + 0.715152*img[,,GREEN$idx] + 0.072175*img[,,BLUE$idx]
 
-
-# Simplified blur image (might be incorrectly understood)
-simplyBlurred <- function(img, size=3) {
-  if (!(size%%2)) stop('even filter size not possible at the moment')
-  f <- matrix(1/(size*size), nrow=size, ncol=size)
-  blurred <- imfilter(img, f, 'replicate')
-  return(blurred)
-}
-
 # Adjusts the amount of color-channel-wise blur.
 # The effects of blur.factor:
 # Negatives add blur, positives reduce blur up to 1.0; larger than 1.0 overcompensate.
@@ -257,22 +330,26 @@ simplyBlurred <- function(img, size=3) {
 #   = +1: blur removed (with a blur filter)
 #   > +1: overcompensated blur removal
 adjustBlur <- function(img, blur.factor, size=3) {
-  blurred <- simplyBlurred(img, size=3)
+  blurred <- meanBlurred(img, size=3)
   return(pmin(pmax(img + (img-blurred)*blur.factor, 0), 1))
 }
 
 # My own sharpness map that is based on the basic blur filter
 sharpAmount <- function(img, size=3) {
-  blurred <- simplyBlurred(img,size)
+  blurred <- meanBlurred(img,size)
   return(abs(img - blurred))
 }
 
 # My own blur map that is based on the basic blur filter
 blurAmount <- function(img, size=3) {
-  blurred <- simplyBlurred(img, size)
+  blurred <- meanBlurred(img, size)
   return(1 - sharpAmount(img))
 }
 
+
+######################
+## QUALITY MEASURES ##
+######################
 
 # The Blur Effect: Perception and Estimation with a New No-Reference Perceptual Blur Metric"
 # Crete F., Dolmiere T., Ladret P., Nicolas M. - GRENOBLE - 2007
@@ -317,7 +394,10 @@ blurAnnoyanceQuality <- function(img, f.len=9) {
 }
 
 
-# Main function
+##########
+## MAIN ##
+##########
+
 main <- function() {
   filename <- '../examples/small_grid.png'
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
@@ -327,7 +407,7 @@ main <- function() {
     view(extractChannel(img,channel), title=paste(channel$name, 'color channel'))
   }
   view(luminance(img), title='Luminance')
-  blurred <- simplyBlurred(img)
+  blurred <- meanBlurred(img)
   #for (channel in RGB) {
   #  view(extractChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
   #}
@@ -338,6 +418,8 @@ main <- function() {
   view(sharpMap, title='Sharpness')
   view(adjustBlur(img, 1.0, 5), title='Blur plus 1.0')
   view(adjustBlur(img, -1.0, 5), title='Blur minus 1.0')
+  gaussian.blurred <- gaussianBlurred(img, 1.0)
+  view(gaussian.blurred, title='Gaussian blurred')
   view(img, title='Full RGB image')
   blur <- blurAnnoyanceQuality(img, f.len=9)
   print(paste('Blur annoyance quality (1--5):', blur))
@@ -347,9 +429,11 @@ main()
 
 
 
-
-
-
+# Measuring 2D Gaussian blur:
+#img <- readImage('../examples/small_grid.png')
+#s <- Sys.time()
+#replicate(1000, gaussianBlurred(img, 1.0))
+#print(Sys.time() - s)
 
 #print('Adjusted blur:')
 #print(blurAnnoyanceQuality(readImage('../examples/small_grid.png'), f.len=3))  # conv2 & conv2dFFT: 2.002251 quality
