@@ -58,6 +58,14 @@ view <- function(img, size=4, title='Image') {
 }
 
 
+rescaleImage <- function(img) {
+  # Rescale values: set 0 as minimum value, and 1 as maximum value. Preserve dimensions.
+  a <- min(img)
+  b <- max(img)
+  return(array(pmax(0, pmin(1, (img-a)/(b-a))), dim=dim(img)))
+}
+
+
 #############
 ## FILTERS ##
 #############
@@ -96,7 +104,13 @@ gaussianFilter2D <- function(n, sigma) {
   return(m)
 }
 
-
+sobelVertical <- function() {
+  return(matrix(c(
+    c(-1, 0, +1),
+    c(-2, 0, +2),
+    c(-1, 0, +1)
+  ), nrow=3, byrow=TRUE))
+}
 
 #################
 ## CONVOLUTION ##
@@ -270,8 +284,11 @@ imfilter <- function(img, f, pad=0, fft=FALSE) {
       mat <- conv2dFFT(src[ , , ch, drop=TRUE], f, dim(res[,,ch]))  # Fast Fourier Transform (2D convolution)
     } else {
       mat <- conv2(src[ , , ch, drop=TRUE], f)  # direct convolution
+      tol <- 1e-12
+      mat[abs(mat) < tol] <- 0      # suppress small inaccuracies in floating point calculations
+      mat[abs(mat - 1) < tol] <- 1  # same here
     }
-    res[ , , ch] <- pmax(0, pmin(1, mat))
+    res[ , , ch] <- mat
   }
   return(res)
 }
@@ -280,6 +297,23 @@ imfilter <- function(img, f, pad=0, fft=FALSE) {
 ####################
 ## DERIVED IMAGES ##
 ####################
+
+# Nobuyuki Otsu, “A threshold selection method from gray-level histograms".
+# IEEE Trans. Sys., Man., Cyber. 9 (1): 62–66. (1979). 
+# Ported from http://clickdamage.com/sourcecode/code/otsuThreshold.m
+otsuThreshold <- function(histogram) {
+  n <- length(histogram)
+  idxs <- 1:n
+  cumus <- cumsum(histogram)
+  weighted <- cumsum(histogram*idxs)
+  u <- weighted / cumus
+  tmp <- cumus[n] - cumus
+  v <- (weighted[n] - weighted) / (tmp + (tmp==0))
+  f <- cumus * (cumus[n] - cumus) * (u-v)^2
+  i <- which.max(f)
+  return(i)
+}
+
 
 # Simplified blur image (might be incorrectly understood)
 meanBlurred <- function(img, size=3) {
@@ -394,6 +428,80 @@ blurAnnoyanceQuality <- function(img, f.len=9) {
 }
 
 
+# Helper function for the 'mdwe' method -- not a universal method.
+# TODO: how to derive the magic constant? How many bins do we consider?
+detectVerticalEdgeAreas <- function(img.gray) {
+  f.vert <- sobelVertical()
+  filtered <- imfilter(img.gray, f.vert, pad='replicate')[ , , 1]
+  edge.strengths <- abs(filtered)
+  bins <- 20  # granularity: just my own magic constant
+  breaks <- seq(min(edge.strengths), max(edge.strengths), length=bins)
+  h <- hist(c(edge.strengths), breaks=breaks, plot=FALSE)
+  thres.idx <- otsuThreshold(h$counts)
+  thres.val <- h$mids[thres.idx]
+  edges <- edge.strengths >= thres.val
+  return(edges)
+}
+# Returns a vector of midpoints (rounding up) for consecutive sub-sequences of TRUE.
+# Input: logical vector
+# For example: TRUE, FALSE, FALSE, TRUE, TRUE, TRUE, FALSE, TRUE, TRUE  --> 1,5,9
+# TODO: consider whether consecutive edges should allow one index without
+#       edge indication, such as ...,0,0,0,1,1,1,1,0,1,1,1,0,0,...
+sequenceMidpoints <- function(vec) {
+  idxs <- which(vec)  # indices that are TRUE
+  starts <- idxs[which(diff(c(-1, idxs)) != 1)]    # start indices of consecutive TRUEs, first TRUE included
+  ends <- idxs[which(diff(c(idxs, length(vec)+2)) != 1)]  # end indices of consecutive TRUEs, last TRUE included
+  mids <- as.integer(ceiling(starts + (ends - starts)/2))  # mid indices of consecutive TRUE sub-sequences
+  return(mids)
+}
+localMinimaIndices <- function(vec) {
+  is.minima <- function(xs, i) i == 1 || i == length(xs) || (xs[i-1] >= xs[i] && xs[i+1] >= xs[i])
+  minima.idxs <- which(sapply(1:length(vec), function(i) is.minima(vec, i)))
+  return(minima.idxs)
+}
+localMaximaIndices <- function(vec) {
+  is.maxima <- function(xs, i) i == 1 || i == length(xs) || (xs[i-1] <= xs[i] && xs[i+1] <= xs[i])
+  maxima.idxs <- which(sapply(1:length(vec), function(i) is.maxima(vec, i)))
+  return(maxima.idxs)
+}
+
+# Pina Marziliano, Frederic Dufaux, Stefan Winkler and Touradj Ebrahimi:
+# A no-reference perceptual Blur Metric
+# TODO: derive a model to produce a quality index between 1 and 5, for example (based on data in the article)
+# TODO: horizontal-edge version of the method
+mdwe <- function(img) {
+  img.gray <- luminance(img)  # use only the luminosity image
+  edges.areas <- detectVerticalEdgeAreas(img.gray)  # several consecutive pixels may be marked as belonging to an edge
+  total.width <- 0
+  num.edges <- 0
+  for (r in 1:nrow(img)) {  # for each row
+    # Find edge indices:
+    edge.mids <- sequenceMidpoints(edges.areas[r, ])
+    # Find all local maxima and minima for the luminosity vector r:
+    horiz.vec <- img.gray[r, ]  # luminosities for row pixels
+    minima.idxs <- localMinimaIndices(horiz.vec)
+    maxima.idxs <- localMaximaIndices(horiz.vec)
+    # For each edge mid-point, find a local minimum and maximum so that mid-point is enclosed:
+    min.idxs <- findInterval(edge.mids, minima.idxs, all.inside=TRUE)
+    max.idxs <- findInterval(edge.mids, maxima.idxs, all.inside=TRUE)
+    prev.mins <- minima.idxs[min.idxs]  # preceding local minimum
+    prev.maxs <- maxima.idxs[max.idxs]
+    # From previous minimum and maximum, deduce the next minimum or maximum.
+    # It is either the next index or the same index (when prev idx is last or edge-mid is at a local optimum).
+    not.same.mins <- (edge.mids != prev.mins)*(length(minima.idxs)+1)  # impossibly large when edge.mid != prev.min
+    not.same.maxs <- (edge.mids != prev.maxs)*(length(maxima.idxs)+1)  # impossibly large when edge.mid != prev.max
+    next.mins <- minima.idxs[pmin(min.idxs + 1, length(minima.idxs), prev.mins + not.same.mins)]  # next, last, or same
+    next.maxs <- maxima.idxs[pmin(max.idxs + 1, length(maxima.idxs), prev.maxs + not.same.maxs)]  # next, last, or same
+    # Compute widths for all edge intervals on this row:
+    widths <- pmin(next.mins - prev.maxs,  next.maxs - prev.mins)  # choose the minimum width: maxmin or minmax
+    total.width <- total.width + sum(widths)
+    num.edges <- num.edges + length(edge.mids)
+  }
+  score <- total.width/num.edges  # Inf when num.edges==0
+  return(score)  # not normalized yet into subjective ratings, now certainly positive
+}
+
+
 ##########
 ## MAIN ##
 ##########
@@ -411,7 +519,7 @@ main <- function() {
   #for (channel in RGB) {
   #  view(extractChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
   #}
-  view(blurred, title='Blurred')
+  view(rescaleImage(blurred), title='Blurred')
   blurMap <- blurAmount(img, 5)
   view(blurMap, title='Blurriness')
   sharpMap <- sharpAmount(img, 5)
@@ -423,6 +531,7 @@ main <- function() {
   view(img, title='Full RGB image')
   blur <- blurAnnoyanceQuality(img, f.len=9)
   print(paste('Blur annoyance quality (1--5):', blur))
+  print(paste('MDWE horizontal blur width:', mdwe(img)))
 }
 
 main()
