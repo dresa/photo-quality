@@ -35,6 +35,12 @@ readImage <- function(filename) {
 extractChannel <- function(img, col.channel) img[ , , col.channel$idx]
 
 
+############
+## COMMON ##
+############
+limit <- function(x, low, high) pmax(low, pmin(high, x))
+
+
 #############
 ## VIEWING ##
 #############
@@ -423,8 +429,10 @@ blurAnnoyanceQuality <- function(img, f.len=9) {
   blur <- max(blur.vert, blur.horiz)  # from 0 to 1.0, smaller is better
   # Convert into a quality parameter (from 1 to 5, larger is better)
   # Constants come from the interpolation model parameters, as reported in the article.
-  quality <- 3.79/(1 + exp(10.72*blur - 4.55)) + 1.13
-  return(quality)
+  quality <- 3.79/(1 + exp(10.72*blur - 4.55)) + 1.13  # from 1 to 5, larger is better
+  ## My own normalization
+  normalized <- (quality-1)/4  # convert to 0--1 (larger is better)
+  return(normalized)
 }
 
 
@@ -466,10 +474,10 @@ localMaximaIndices <- function(vec) {
 }
 
 # Pina Marziliano, Frederic Dufaux, Stefan Winkler and Touradj Ebrahimi:
-# A no-reference perceptual Blur Metric
+# A No-Reference Perceptual Blur Metric, 2002
 # TODO: derive a model to produce a quality index between 1 and 5, for example (based on data in the article)
 # TODO: horizontal-edge version of the method
-mdwe <- function(img) {
+mdweVertical <- function(img) {
   img.gray <- luminance(img)  # use only the luminosity image
   edges.areas <- detectVerticalEdgeAreas(img.gray)  # several consecutive pixels may be marked as belonging to an edge
   total.width <- 0
@@ -497,8 +505,12 @@ mdwe <- function(img) {
     total.width <- total.width + sum(widths)
     num.edges <- num.edges + length(edge.mids)
   }
-  score <- total.width/num.edges  # Inf when num.edges==0
-  return(score)  # not normalized yet into subjective ratings, now certainly positive
+  score.raw <- total.width/num.edges  # Inf when num.edges==0
+  ## My own normalization
+  score.gaussian <- limit(score.raw^1.04 - 4.5, 1, 10)  # From no blur (1) to distractive blur (10)
+  score.jpeg2k <- limit(17.5*max(0,score.raw-3)^0.3 - 19.5, 1, 10)
+  norm <- function(x) -((score.gaussian - 1) / (10-1) - 1)  # 1--10 (smaller is better) --> 0--1 (larger is better)
+  return(list(score=score.raw, gaussian=norm(score.gaussian), jpeg2k=norm(score.jpeg2k)))
 }
 
 
@@ -530,8 +542,11 @@ main <- function() {
   view(gaussian.blurred, title='Gaussian blurred')
   view(img, title='Full RGB image')
   blur <- blurAnnoyanceQuality(img, f.len=9)
-  print(paste('Blur annoyance quality (1--5):', blur))
-  print(paste('MDWE horizontal blur width:', mdwe(img)))
+  print(paste('Blur annoyance quality (0--1):', blur))  # more is better
+  mdwe.score <- mdweVertical(img)
+  print(paste('MDWE horizontal blur width:', mdwe.score[['score']]))  # smaller is better
+  print(paste('MDWE Gaussian quality (0--1):', mdwe.score[['gaussian']]))  # greater is better
+  print(paste('MDWE JPEG2000 quality (0--1):', mdwe.score[['jpeg2k']]))  # greater is better
 }
 
 main()
@@ -574,3 +589,14 @@ main()
 #[1,]  6.8  7.8  8.8  9.8
 #[2,] 12.8 13.8 14.8 15.8
 #[3,] 18.8 19.8 20.8 21.8
+
+# Marziliano data (estimated from plots):
+#   Gaussian comparison (x: objective, y: subjective):
+#   gx <- c(4.5, 4.5, 4.6, 4.7, 4.7, 4.8, 4.9, 5.1, 5.3, 5.4, 5.9, 6.0, 6.1, 6.4, 7.2, 7.3, 7.6, 8.0, 8.4, 8.6, 9.2, 9.4, 9.6, 9.8, 10.9, 11.2, 11.3, 11.4, 13.0, 13.4)
+#   gy <- c(0.1, 0.2, 0.6, 0.8, 0.6, 0.3, 0.4, 0.3, 0.7, 1.2, 2.9, 2.8, 2.3, 2.5, 3.8, 2.3, 5.1, 4.9, 4.7, 6.0, 7.3, 5.5, 6.5, 7.3, 8.7, 7.0, 8.1, 7.6, 8.9, 8.0)
+#   JPEG comparison (x: objective, y: subjective):
+#   jx <- c(4.5, 4.5, 4.6, 4.8, 5.1, 5.2, 5.3, 5.3, 5.7, 5.7, 5.8, 5.9, 5.9, 6.2, 6.2, 6.3, 6.6, 6.7, 6.8, 6.8, 7.0, 7.0, 7.1, 7.1, 7.2, 7.7, 7.7, 7.8, 8.4, 9.2)
+#   jy <- c(0.3, 0.6, 0.1, 0.8, 2.5, 0.9, 4.5, 3.5, 1.6, 4.8, 3.6, 7.1, 5.8, 6.0, 3.3, 8.5, 5.1, 9.2, 7.1, 6.6, 7.2, 6.1, 7.4, 8.7, 8.8, 8.1, 8.1, 8.0, 8.0, 8.9)
+#  My own functions: objective x -> subjective y (limited to 1--10 disturbance, higher is worse)
+#  Gaussian: y = x^1.04 - 4.5
+#  JPEG: y = 17.5*(x-3)^(0.3)-19.5
