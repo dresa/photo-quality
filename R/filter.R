@@ -17,6 +17,11 @@ GREEN <- list(idx=2, name='GREEN')
 BLUE <- list(idx=3, name='BLUE')
 RGB <- list(RED, GREEN, BLUE)
 
+HUE <- list(idx=1, name='HUE')
+SATURATION <- list(idx=2, name='SATURATION')
+VALUE <- list(idx=3, name='VALUE')
+HSV <- list(HUE, SATURATION, VALUE)
+
 # Read image file (either a valid PNG or JPEG extension required)
 readImage <- function(filename) {
   refname <- tolower(trimws(filename))
@@ -29,16 +34,95 @@ readImage <- function(filename) {
   } else if (endsWithAny(refname, c('\\.png'))) {
     img <- readPNG(filename)
   } else stop('Image file must be a .PNG or .JPG file')
+  dimnames(img) <- list(NULL, NULL, c('Red', 'Green', 'Blue'))
+  return(img)
 }
 
 # Return a matrix that represents channel 'col.channel' of image 'img'.
-extractChannel <- function(img, col.channel) img[ , , col.channel$idx]
+extractRGBChannel <- function(img.rgb, col.channel) img.rgb[ , , col.channel$idx]
+
+extractHSVChannel <- function(img.hsv, hsv.channel) img.hsv[ , , hsv.channel$idx]
+
+# Convert RGB image to an HSV image. Assumption: RGB values are between 0 and 1.
+# Hues are degrees between 0 and 360; Saturations and Values are between 0 and 1.
+toHSV <- function(img.rgb, radians=FALSE) {
+  # Extract R,G, and B color channels
+  red <- extractRGBChannel(img.rgb, RED)
+  green <- extractRGBChannel(img.rgb, GREEN)
+  blue <- extractRGBChannel(img.rgb, BLUE)
+  # Temporary variables
+  dims <- dim(red)
+  max.values <- pmax(red, green, blue)
+  diffs <- max.values - pmin(red, green, blue)
+  # Compute H(ue), S(saturation), and V(alue):
+  # S(aturation):
+  saturations <- diffs / max.values
+  saturations[max.values == 0] <- 0  # replace Inf by zero (originates from division by zero)
+  # H(ue):
+  R<-0; G<-2; B<-4  # additive color-shift values in the hue formula
+  max.layer <- array(R, dim=dims)  # which color layer has maximum value? R, G, or B?
+  max.layer[green > red] <- G
+  max.layer[blue > pmax(red, green)] <- B
+  red.mask <- max.layer == R
+  green.mask <- max.layer == G
+  blue.mask <- max.layer == B
+  hues <- array(dim=dims)
+  angle <- if (radians) pi/3 else 60
+  hues[red.mask]   <- angle * ((green[red.mask]  - blue[red.mask])   / diffs[red.mask]   + R)%%6
+  hues[green.mask] <- angle * ((blue[green.mask] - red[green.mask])  / diffs[green.mask] + G)%%6
+  hues[blue.mask]  <- angle * ((red[blue.mask]   - green[blue.mask]) / diffs[blue.mask]  + B)%%6
+  hues[max.values==0] <- NA  # undefined hue is not needed; red (zero degrees) as default
+  hues[diffs==0] <- NA  # undefined hue is not needed; red (zero degrees) as default
+  # V(alue):
+  values <- max.values
+  # Return an HSV image as an (M x N x 3) array
+  dim.names <- list(NULL, NULL, c('Hue', 'Saturation', 'Value'))
+  return(array(c(hues, saturations, values), dim=c(dims[1], dims[2], 3), dimnames=dim.names))
+}
 
 
 ############
 ## COMMON ##
 ############
 limit <- function(x, low, high) pmax(low, pmin(high, x))
+
+binarySearch <- function(func, target, low, high, tol=1e-12) {
+  if ( high < low ) { return(NULL) }
+  else {
+    mid <- (low + high) / 2
+    func.val <- func(mid)
+    if (abs(func.val - target) < tol) { return(mid) }
+    else if (func.val > target) { binarySearch(func, target, low, mid) }
+    else if (func.val < target) { binarySearch(func, target, mid, high) }
+  }
+}
+
+# Misunderstood an article. Obsolete.
+# Bessel function of the first kind.
+# Approximately correct. It's hard to deduce a good number of terms, now 41.
+# Highly restricted search area. The function is monotonic at least in range (-1.84, 1.84).
+#besselJ <- function(alpha, x) sum(sapply(0:40, function(k) (-x^2/4)^k/factorial(k)/gamma(alpha+k+1)*(x/2)^alpha))
+#invertedBesselJ <- function(alpha, y, low=-1.84, high=1.84) binarySearch(function(x) besselJ(alpha, x), y, low, high, tol=1e-6)
+
+#Evaluates the first and zeroth order Bessel functions of the first kind at a specified non-negative real
+#number, and returns the ratio. [Related to circularity]
+#See: https://cran.r-project.org/web/packages/circular/circular.pdf
+#https://r-forge.r-project.org/scm/viewvc.php/pkg/R/A1.R?view=markup&root=circular
+A1 <- function(kappa) {
+    result <- besselI(kappa, nu=1, expon.scaled = TRUE)/besselI(kappa, nu=0, expon.scaled = TRUE)
+    return(result)
+}
+#Inverse function of the ratio of the first and zeroth order Bessel functions of the first kind.  This
+#function is used to compute the maximum likelihood estimate of the concentration parameter of a
+#von Mises distribution.
+# https://r-forge.r-project.org/scm/viewvc.php/pkg/R/A1inv.R?view=markup&root=circular&pathrev=6
+A1inv <- function(x) {
+   ifelse (0 <= x & x < 0.53, 2 * x + x^3 + (5 * x^5)/6,
+           ifelse (x < 0.85, -0.4 + 1.39 * x + 0.43/(1 - x), 1/(x^3 - 4 * x^2 + 3 * x)))
+}
+
+radianToDegree <- function(rad) rad*(360/(2*pi))
+degreeToRadian <- function(degree) degree*(2*pi/360)
 
 
 #############
@@ -513,23 +597,50 @@ mdweVertical <- function(img) {
   return(list(score=score.raw, gaussian=norm(score.gaussian), jpeg2k=norm(score.jpeg2k)))
 }
 
+# A New No-reference Method for Color Image Quality Assessment
+# Sonia Ouni, Ezzeddine Zagrouba, Majed Chambah, 2012
+# International Journal of Computer Applications (0975 – 8887)
+# Volume 40– No.17, February 2012
+# Note that there are errors in the RGB->HSV conversion formula. See Wikipedia instead.
+dispersionDominantColor <- function(img.hsv) {
+  hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
+  mask <- !is.na(hues)  # existing hues
+  mu <- atan2(sum(sin(hues[mask])), sum(cos(hues[mask])))%%(2*pi)  # angles between hues
+  # Next we should estimate the kappa parameter of a von Mises distribution in a circular domain.
+  print(paste('mu (degrees):', radianToDegree(mu)))
+  kappa <- A1inv(mean(cos(hues[mask] - mu)))
+  print(paste('Old try:', kappa))
+
+  C <- sum(cos(hues[mask]))
+  S <- sum(sin(hues[mask]))
+  R <- sqrt(C^2 + S^2)
+  n <- length(hues[mask])
+  print(paste('New try:', A1inv(R/n)))  # identical to 'old try'
+
+  magic <- 45  # With this multiplier the kappa values match with those of two images in the article (for an unknown reason).
+  return(kappa*magic)
+}
+
 
 ##########
 ## MAIN ##
 ##########
 
 main <- function() {
-  filename <- '../examples/small_grid.png'
+  #filename <- '../examples/small_grid.png'
+  #filename <- '../examples/blue_shift.png'
+  filename <- '../examples/no_shift.png'
+  #filename <- '../examples/niemi.png'
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
   #filename <- '../examples/K5_10994.JPG'
   img <- readImage(filename)
   for (channel in RGB) {
-    view(extractChannel(img,channel), title=paste(channel$name, 'color channel'))
+    view(extractRGBChannel(img,channel), title=paste(channel$name, 'color channel'))
   }
   view(luminance(img), title='Luminance')
   blurred <- meanBlurred(img)
   #for (channel in RGB) {
-  #  view(extractChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
+  #  view(extractRGBChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
   #}
   view(rescaleImage(blurred), title='Blurred')
   blurMap <- blurAmount(img, 5)
@@ -547,6 +658,7 @@ main <- function() {
   print(paste('MDWE horizontal blur width:', mdwe.score[['score']]))  # smaller is better
   print(paste('MDWE Gaussian quality (0--1):', mdwe.score[['gaussian']]))  # greater is better
   print(paste('MDWE JPEG2000 quality (0--1):', mdwe.score[['jpeg2k']]))  # greater is better
+  print(paste('Color dispersion(kappa):', dispersionDominantColor(toHSV(img))))
 }
 
 main()
@@ -600,3 +712,7 @@ main()
 #  My own functions: objective x -> subjective y (limited to 1--10 disturbance, higher is worse)
 #  Gaussian: y = x^1.04 - 4.5
 #  JPEG: y = 17.5*(x-3)^(0.3)-19.5
+
+# Von Mises test data:
+# http://www.stat.sfu.ca/content/dam/sfu/stat/alumnitheses/MiscellaniousTheses/Bentley-2006.pdf
+# d <- c(0,0,0,15,45,68,100,110,113,135,135,140,140,155,165,165,169,180,180,180,180,180,180,180,189,206,209,210,214,215,225,226,230,235,245,250,255,255,260,260,260,260,270,270)
