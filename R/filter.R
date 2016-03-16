@@ -6,6 +6,7 @@
 library(jpeg)  # function 'readJPG' to read JPEG files
 library(png)   # function 'readPNG' to read PNG files
 library(grid)  # function 'grid.raster' to view images
+library(circular)
 
 ###########
 ## IMAGE ##
@@ -281,7 +282,7 @@ conv2dFFT <- function(x, m, dims) {
 }
 
 
-# A naïve and slow 2D convolution
+# A na?ve and slow 2D convolution
 # Matrix 'mat' and filter 'f' are both matrices, but f is assumed to be a smaller one.
 conv2 <- function(mat, f, shape='same') {
   nr=nrow(mat)  #number of rows
@@ -388,8 +389,8 @@ imfilter <- function(img, f, pad=0, fft=FALSE) {
 ## DERIVED IMAGES ##
 ####################
 
-# Nobuyuki Otsu, “A threshold selection method from gray-level histograms".
-# IEEE Trans. Sys., Man., Cyber. 9 (1): 62–66. (1979). 
+# Nobuyuki Otsu, ?A threshold selection method from gray-level histograms".
+# IEEE Trans. Sys., Man., Cyber. 9 (1): 62?66. (1979). 
 # Ported from http://clickdamage.com/sourcecode/code/otsuThreshold.m
 otsuThreshold <- function(histogram) {
   n <- length(histogram)
@@ -599,8 +600,8 @@ mdweVertical <- function(img) {
 
 # A New No-reference Method for Color Image Quality Assessment
 # Sonia Ouni, Ezzeddine Zagrouba, Majed Chambah, 2012
-# International Journal of Computer Applications (0975 – 8887)
-# Volume 40– No.17, February 2012
+# International Journal of Computer Applications (0975 ? 8887)
+# Volume 40? No.17, February 2012
 # Note that there are errors in the RGB->HSV conversion formula. See Wikipedia instead.
 dispersionDominantColor <- function(img.hsv) {
   hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
@@ -617,8 +618,14 @@ dispersionDominantColor <- function(img.hsv) {
   n <- length(hues[mask])
   print(paste('New try:', A1inv(R/n)))  # identical to 'old try'
 
-  magic <- 45  # With this multiplier the kappa values match with those of two images in the article (for an unknown reason).
-  return(kappa*magic)
+  dev.new()
+  circ.data <- circular(hues[mask], units='radians', zero=0, rotation="clock")
+  #colors <- hsv(h=hues[mask]/(2*pi), s=1, v=1, alpha=1)
+  circular::rose.diag(circ.data, bins=180, prop=5.0, zero=0, col='grey')
+
+  return(list(mu=mu, kappa=kappa))
+  #magic <- 45  # With this multiplier the kappa values match with those of two images in the article (for an unknown reason).
+  #return(kappa*magic)
 }
 
 
@@ -628,8 +635,8 @@ dispersionDominantColor <- function(img.hsv) {
 
 main <- function() {
   #filename <- '../examples/small_grid.png'
-  #filename <- '../examples/blue_shift.png'
-  filename <- '../examples/no_shift.png'
+  filename <- '../examples/blue_shift.png'
+  #filename <- '../examples/no_shift.png'
   #filename <- '../examples/niemi.png'
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
   #filename <- '../examples/K5_10994.JPG'
@@ -658,7 +665,9 @@ main <- function() {
   print(paste('MDWE horizontal blur width:', mdwe.score[['score']]))  # smaller is better
   print(paste('MDWE Gaussian quality (0--1):', mdwe.score[['gaussian']]))  # greater is better
   print(paste('MDWE JPEG2000 quality (0--1):', mdwe.score[['jpeg2k']]))  # greater is better
-  print(paste('Color dispersion(kappa):', dispersionDominantColor(toHSV(img))))
+  ddc <- dispersionDominantColor(toHSV(img))
+  print(paste('Color dispersion(mu):', ddc$mu))
+  print(paste('Color dispersion(kappa):', ddc$kappa))
 }
 
 main()
@@ -715,4 +724,31 @@ main()
 
 # Von Mises test data:
 # http://www.stat.sfu.ca/content/dam/sfu/stat/alumnitheses/MiscellaniousTheses/Bentley-2006.pdf
-# d <- c(0,0,0,15,45,68,100,110,113,135,135,140,140,155,165,165,169,180,180,180,180,180,180,180,189,206,209,210,214,215,225,226,230,235,245,250,255,255,260,260,260,260,270,270)
+#   degrees <- c(0,0,0,15,45,68,100,110,113,135,135,140,140,155,165,165,169,180,180,180,180,180,180,180,189,206,209,210,214,215,225,226,230,235,245,250,255,255,260,260,260,260,270,270)
+#   rads <- degrees / 360 * (2*pi)
+#   mu <- atan2(sum(sin(rads)), sum(cos(rads))) %% (2*pi)
+#   kappa <- est.kappa(rads)
+# Compare:
+#   hist(degrees)
+#   hist(as.numeric(rvonmises(10000, mu, kappa)) / (2*pi) * 360)
+# Expected: maximum likelihood parameter estimate:
+#   mu; stderr(mu); kappa; stderr(kappa)
+#   199.4 degrees; 12.2 degrees; 1.07; 0.26
+#
+# Another test data:
+#   degrees <- c(1.9, 12.4, 28.1, 28.9, 41.5, 46.0, 55.5, 56.6, 72.6, 75.5,
+#                86.1, 109.6, 111.0, 115.3, 123.3, 127.6, 139.6, 140.8, 142.0, 147.5,
+#                147.7, 149.8, 150.3, 154.1, 160.0, 161.9, 162.1, 162.4, 162.7, 163.1,
+#                163.7, 168.1, 170.2, 170.4, 171.9, 172.2, 172.5, 175.4, 175.6, 175.7,
+#                176.5, 177.1, 177.7, 179.0, 179.4, 179.7, 180.6, 180.7, 180.7, 181.1,
+#                181.7, 182.0, 183.8, 184.1, 185.3, 188.5, 188.8, 189.0, 189.8, 192.6,
+#                193.9, 194.9, 195.5, 195.7, 195.9, 196.0, 196.2, 196.4, 196.6, 198.0,
+#                199.2, 199.8, 202.4, 202.9, 204.8, 206.7, 207.6, 210.5, 210.9, 212.4,
+#                212.5, 213.1, 214.8, 218.0, 219.6, 220.6, 220.7, 224.5, 228.2, 232.4,
+#                254.5, 255.0, 266.0, 277.4, 282.9, 289.4, 295.4, 301.1, 326.4, 354.9)
+#   rads <- degrees / 360 * (2*pi)
+#   mu <- atan2(sum(sin(rads)), sum(cos(rads))) %% (2*pi)
+#   kappa <- est.kappa(rads)
+# Expected: maximum likelihood parameter estimate:
+#   mu; stderr(mu); kappa; stderr(kappa)
+#   183.3 degrees; 5.9 degrees; 1.55; 0.21
