@@ -158,7 +158,7 @@ rescaleImage <- function(img) {
   return(array(pmax(0, pmin(1, (img-a)/(b-a))), dim=dim(img)))
 }
 
-# View (or save) a plot of color hues in polar coordinates (DDC ~ Dispersion Dominant Colors).
+# View (or save) a plot of color hues in a polar histogram (DDC ~ Dispersion Dominant Colors).
 # This is very slow for an unknown reason. You need to wait half a minute for rendering.
 viewDDC <- function(filename, img.hsv, mu, kappa) {
   hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
@@ -636,18 +636,51 @@ dispersionDominantColor <- function(img.hsv) {
   mask <- !is.na(hues)  # existing hues
   mu <- atan2(sum(sin(hues[mask])), sum(cos(hues[mask])))%%(2*pi)  # angles between hues
   # Next we should estimate the kappa parameter of a von Mises distribution in a circular domain.
-  print(paste('mu (degrees):', radianToDegree(mu)))
+  #print(paste('mu (degrees):', radianToDegree(mu)))
   kappa <- A1inv(mean(cos(hues[mask] - mu)))
-  print(paste('Old try:', kappa))
 
-  C <- sum(cos(hues[mask]))
-  S <- sum(sin(hues[mask]))
-  R <- sqrt(C^2 + S^2)
-  n <- length(hues[mask])
-  print(paste('New try:', A1inv(R/n)))  # identical to 'old try'
+  ## Same as the following:
+  #C <- sum(cos(hues[mask]))
+  #S <- sum(sin(hues[mask]))
+  #R <- sqrt(C^2 + S^2)
+  #n <- length(hues[mask])
+  #kappa <- A1inv(R/n)
 
-  circ.data <- circular(hues[mask], units='radians', zero=0, rotation="clock")
-  return(list(mu=mu, kappa=kappa))
+  # NPDC and pi measure:
+  dist.raw <- abs(hues[mask] - mu)
+  dist <- pmin(dist.raw, 2*pi - dist.raw)  # distance between hues, mod 2*pi
+  npdc.mask <- dist <= kappa
+  npdc <- sum(npdc.mask)  # pixels in a dominant color (within range kappa)
+  pi.measure <- npdc / length(hues[mask])
+  px.row <- matrix(1:length(hues) %% nrow(hues), nrow=nrow(hues))
+  px.col <- matrix(1:length(hues) %/% nrow(hues), nrow=nrow(hues))
+  
+  # THE FOLLOWING HAS NOT BEEN TESTED:
+  # Local distance LD:
+  row.idx <- c(px.row[mask][npdc.mask])
+  col.idx <- c(px.col[mask][npdc.mask])
+  #spatial.dispersion <- sum(sapply(1:length(row.idx), function(i) sqrt((row.idx - row.idx[i])^2 + (col.idx - col.idx[i])^2))) / npdc^2
+
+  k <- length(row.idx)
+  ds <- 0
+  for (i in 1:k) {
+    local.dist <- sum(sqrt((row.idx - row.idx[i])^2 + (col.idx - col.idx[i])^2)) / k
+    ds <- ds + local.dist
+  }
+  spatial.dispersion <- ds / k  # average distance between pixels that have dominant color
+  # I still think the value should be normalized somehow, for example dividing
+  # by an average distance between wo pixinls in the whole image, not just in dominan color.
+  # Otherwise image size has an effect on the absolute maghnitude of the number.
+  # In the original article the values like 0.0020936 don't make much sense.
+
+  # Results:
+  print(paste('kappa',kappa))
+  print(paste('npdc', npdc))
+  print(paste('length(hues)', length(hues)))
+  print(paste('spatial.dispersion', spatial.dispersion))
+  
+  #circ.data <- circular(hues[mask], units='radians', zero=0, rotation="clock")  # debug
+  return(list(mu=mu, kappa=kappa, pi=pi.measure, ds=spatial.dispersion))
 }
 
 
@@ -658,13 +691,15 @@ dispersionDominantColor <- function(img.hsv) {
 main <- function() {
   do.view <- FALSE
   print('=== START ===')
-  #filename <- '../examples/small_grid.png'
+  filename <- '../examples/small_grid.png'
   #filename <- '../examples/blue_shift.png'
   #filename <- '../examples/no_shift.png'
-  filename <- '../examples/niemi.png'
+  #filename <- '../examples/niemi.png'
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
   #filename <- '../examples/K5_10994.JPG'
-
+  #filename <- '../examples/green_grass_blue_sky.png'
+  #filename <- '../examples/dark_city.png'
+  
   img <- readImage(filename)
   for (channel in RGB) {
     if (do.view) view(extractRGBChannel(img,channel), title=paste(channel$name, 'color channel'))
@@ -683,7 +718,7 @@ main <- function() {
   if (do.view) view(adjustBlur(img, -1.0, 5), title='Blur minus 1.0')
   gaussian.blurred <- gaussianBlurred(img, 1.0)
   if (do.view) view(gaussian.blurred, title='Gaussian blurred')
-  view(img, title='Full RGB image')
+  if (do.view) view(img, title='Full RGB image')
   blur <- blurAnnoyanceQuality(img, f.len=9)
   print(paste('Blur annoyance quality (0--1):', blur))  # more is better
   mdwe.score <- mdweVertical(img)
@@ -691,9 +726,11 @@ main <- function() {
   print(paste('MDWE Gaussian quality (0--1):', mdwe.score[['gaussian']]))  # greater is better
   print(paste('MDWE JPEG2000 quality (0--1):', mdwe.score[['jpeg2k']]))  # greater is better
   ddc <- dispersionDominantColor(toHSV(img))
-  print(paste('Color dispersion(mu):', ddc$mu))
+  # Dominant direction, spread, and portion of the dominant color.
+  print(paste('Color dispersion(mu):', ddc$mu, 'and in degrees', radianToDegree(ddc$mu)))
   print(paste('Color dispersion(kappa):', ddc$kappa))
-  viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
+  print(paste('Color dispersion(pi):', ddc$pi))
+  if (do.view) viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
   print('===  END  ===')
 }
 
