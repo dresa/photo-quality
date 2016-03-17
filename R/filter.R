@@ -7,6 +7,8 @@ library(jpeg)  # function 'readJPG' to read JPEG files
 library(png)   # function 'readPNG' to read PNG files
 library(grid)  # function 'grid.raster' to view images
 library(circular)
+library(ggplot2)  # hue-usage in polar coordinates
+
 
 ###########
 ## IMAGE ##
@@ -156,6 +158,31 @@ rescaleImage <- function(img) {
   return(array(pmax(0, pmin(1, (img-a)/(b-a))), dim=dim(img)))
 }
 
+# View (or save) a plot of color hues in polar coordinates (DDC ~ Dispersion Dominant Colors).
+# This is very slow for an unknown reason. You need to wait half a minute for rendering.
+viewDDC <- function(filename, img.hsv, mu, kappa) {
+  hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
+  num.bins <- 120
+  x.max <- 2*pi  # 2*pi radians is 360 degrees
+  h.raw <- c(hues)
+  clean.hues <- h.raw[!is.na(h.raw)]
+  bin.factor <- x.max / num.bins
+  d <- (clean.hues %/% bin.factor)*bin.factor
+  cols <- hsv(h=(d%%x.max)/x.max)
+  toCirc <- function(x) circular(x, type='angles', units='radians', rotation='clock')
+  size.factor <- max(table(findInterval(clean.hues, seq(0, 2*pi, length.out=num.bins+1))))
+  tick.labels <- c('0', expression(pi * '/2'), expression(pi), expression('3' * pi * '/2'))
+  p <- qplot(d, fill=cols, xlim=c(0, x.max), bins=num.bins, xlab='hue (radians)') +
+    scale_fill_identity() +
+    coord_polar(start=pi/2) +
+    scale_x_continuous(breaks=c(0, pi/2, pi, 3*pi/2), labels=tick.labels) +
+    stat_function(fun=function(x) size.factor*dvonmises(toCirc(x), mu=toCirc(mu), kappa=kappa), colour='black') +
+    theme(axis.text.x=element_text(face="plain", color='black', size=16, angle=0),
+          axis.text.y=element_text(face="plain", color='black', size=12, angle=0))
+  print(p)
+  if (!is.null(filename)) ggsave(filename, width=12, height=12, units='cm')
+}
+
 
 #############
 ## FILTERS ##
@@ -282,7 +309,7 @@ conv2dFFT <- function(x, m, dims) {
 }
 
 
-# A na?ve and slow 2D convolution
+# A naive and slow 2D convolution
 # Matrix 'mat' and filter 'f' are both matrices, but f is assumed to be a smaller one.
 conv2 <- function(mat, f, shape='same') {
   nr=nrow(mat)  #number of rows
@@ -400,7 +427,7 @@ otsuThreshold <- function(histogram) {
   u <- weighted / cumus
   tmp <- cumus[n] - cumus
   v <- (weighted[n] - weighted) / (tmp + (tmp==0))
-  f <- cumus * (cumus[n] - cumus) * (u-v)^2
+  f <- 1.0 * cumus * (cumus[n] - cumus) * (u-v)^2
   i <- which.max(f)
   return(i)
 }
@@ -598,6 +625,7 @@ mdweVertical <- function(img) {
   return(list(score=score.raw, gaussian=norm(score.gaussian), jpeg2k=norm(score.jpeg2k)))
 }
 
+
 # A New No-reference Method for Color Image Quality Assessment
 # Sonia Ouni, Ezzeddine Zagrouba, Majed Chambah, 2012
 # International Journal of Computer Applications (0975 ? 8887)
@@ -618,14 +646,8 @@ dispersionDominantColor <- function(img.hsv) {
   n <- length(hues[mask])
   print(paste('New try:', A1inv(R/n)))  # identical to 'old try'
 
-  dev.new()
   circ.data <- circular(hues[mask], units='radians', zero=0, rotation="clock")
-  #colors <- hsv(h=hues[mask]/(2*pi), s=1, v=1, alpha=1)
-  circular::rose.diag(circ.data, bins=180, prop=5.0, zero=0, col='grey')
-
   return(list(mu=mu, kappa=kappa))
-  #magic <- 45  # With this multiplier the kappa values match with those of two images in the article (for an unknown reason).
-  #return(kappa*magic)
 }
 
 
@@ -634,30 +656,33 @@ dispersionDominantColor <- function(img.hsv) {
 ##########
 
 main <- function() {
+  do.view <- FALSE
+  print('=== START ===')
   #filename <- '../examples/small_grid.png'
-  filename <- '../examples/blue_shift.png'
+  #filename <- '../examples/blue_shift.png'
   #filename <- '../examples/no_shift.png'
-  #filename <- '../examples/niemi.png'
+  filename <- '../examples/niemi.png'
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
   #filename <- '../examples/K5_10994.JPG'
+
   img <- readImage(filename)
   for (channel in RGB) {
-    view(extractRGBChannel(img,channel), title=paste(channel$name, 'color channel'))
+    if (do.view) view(extractRGBChannel(img,channel), title=paste(channel$name, 'color channel'))
   }
-  view(luminance(img), title='Luminance')
+  if (do.view) view(luminance(img), title='Luminance')
   blurred <- meanBlurred(img)
-  #for (channel in RGB) {
-  #  view(extractRGBChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
-  #}
-  view(rescaleImage(blurred), title='Blurred')
+  for (channel in RGB) {
+    if (do.view) view(extractRGBChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
+  }
+  if (do.view) view(rescaleImage(blurred), title='Blurred')
   blurMap <- blurAmount(img, 5)
-  view(blurMap, title='Blurriness')
+  if (do.view) view(blurMap, title='Blurriness')
   sharpMap <- sharpAmount(img, 5)
-  view(sharpMap, title='Sharpness')
-  view(adjustBlur(img, 1.0, 5), title='Blur plus 1.0')
-  view(adjustBlur(img, -1.0, 5), title='Blur minus 1.0')
+  if (do.view) view(sharpMap, title='Sharpness')
+  if (do.view) view(adjustBlur(img, 1.0, 5), title='Blur plus 1.0')
+  if (do.view) view(adjustBlur(img, -1.0, 5), title='Blur minus 1.0')
   gaussian.blurred <- gaussianBlurred(img, 1.0)
-  view(gaussian.blurred, title='Gaussian blurred')
+  if (do.view) view(gaussian.blurred, title='Gaussian blurred')
   view(img, title='Full RGB image')
   blur <- blurAnnoyanceQuality(img, f.len=9)
   print(paste('Blur annoyance quality (0--1):', blur))  # more is better
@@ -668,6 +693,8 @@ main <- function() {
   ddc <- dispersionDominantColor(toHSV(img))
   print(paste('Color dispersion(mu):', ddc$mu))
   print(paste('Color dispersion(kappa):', ddc$kappa))
+  viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
+  print('===  END  ===')
 }
 
 main()
