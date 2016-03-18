@@ -6,6 +6,9 @@
 library(jpeg)  # function 'readJPG' to read JPEG files
 library(png)   # function 'readPNG' to read PNG files
 library(grid)  # function 'grid.raster' to view images
+library(circular)
+library(ggplot2)  # hue-usage in polar coordinates
+
 
 ###########
 ## IMAGE ##
@@ -155,6 +158,31 @@ rescaleImage <- function(img) {
   return(array(pmax(0, pmin(1, (img-a)/(b-a))), dim=dim(img)))
 }
 
+# View (or save) a plot of color hues in a polar histogram (DDC ~ Dispersion Dominant Colors).
+# This is very slow for an unknown reason. You need to wait half a minute for rendering.
+viewDDC <- function(filename, img.hsv, mu, kappa) {
+  hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
+  num.bins <- 120
+  x.max <- 2*pi  # 2*pi radians is 360 degrees
+  h.raw <- c(hues)
+  clean.hues <- h.raw[!is.na(h.raw)]
+  bin.factor <- x.max / num.bins
+  d <- (clean.hues %/% bin.factor)*bin.factor
+  cols <- hsv(h=(d%%x.max)/x.max)
+  toCirc <- function(x) circular(x, type='angles', units='radians', rotation='clock')
+  size.factor <- max(table(findInterval(clean.hues, seq(0, 2*pi, length.out=num.bins+1))))
+  tick.labels <- c('0', expression(pi * '/2'), expression(pi), expression('3' * pi * '/2'))
+  p <- qplot(d, fill=cols, xlim=c(0, x.max), bins=num.bins, xlab='hue (radians)') +
+    scale_fill_identity() +
+    coord_polar(start=pi/2) +
+    scale_x_continuous(breaks=c(0, pi/2, pi, 3*pi/2), labels=tick.labels) +
+    stat_function(fun=function(x) size.factor*dvonmises(toCirc(x), mu=toCirc(mu), kappa=kappa), colour='black') +
+    theme(axis.text.x=element_text(face="plain", color='black', size=16, angle=0),
+          axis.text.y=element_text(face="plain", color='black', size=12, angle=0))
+  print(p)
+  if (!is.null(filename)) ggsave(filename, width=12, height=12, units='cm')
+}
+
 
 #############
 ## FILTERS ##
@@ -281,7 +309,7 @@ conv2dFFT <- function(x, m, dims) {
 }
 
 
-# A naïve and slow 2D convolution
+# A naive and slow 2D convolution
 # Matrix 'mat' and filter 'f' are both matrices, but f is assumed to be a smaller one.
 conv2 <- function(mat, f, shape='same') {
   nr=nrow(mat)  #number of rows
@@ -388,8 +416,8 @@ imfilter <- function(img, f, pad=0, fft=FALSE) {
 ## DERIVED IMAGES ##
 ####################
 
-# Nobuyuki Otsu, “A threshold selection method from gray-level histograms".
-# IEEE Trans. Sys., Man., Cyber. 9 (1): 62–66. (1979). 
+# Nobuyuki Otsu, ?A threshold selection method from gray-level histograms".
+# IEEE Trans. Sys., Man., Cyber. 9 (1): 62?66. (1979). 
 # Ported from http://clickdamage.com/sourcecode/code/otsuThreshold.m
 otsuThreshold <- function(histogram) {
   n <- length(histogram)
@@ -399,7 +427,7 @@ otsuThreshold <- function(histogram) {
   u <- weighted / cumus
   tmp <- cumus[n] - cumus
   v <- (weighted[n] - weighted) / (tmp + (tmp==0))
-  f <- cumus * (cumus[n] - cumus) * (u-v)^2
+  f <- 1.0 * cumus * (cumus[n] - cumus) * (u-v)^2
   i <- which.max(f)
   return(i)
 }
@@ -597,29 +625,87 @@ mdweVertical <- function(img) {
   return(list(score=score.raw, gaussian=norm(score.gaussian), jpeg2k=norm(score.jpeg2k)))
 }
 
+
 # A New No-reference Method for Color Image Quality Assessment
 # Sonia Ouni, Ezzeddine Zagrouba, Majed Chambah, 2012
-# International Journal of Computer Applications (0975 – 8887)
-# Volume 40– No.17, February 2012
+# International Journal of Computer Applications (0975 ? 8887)
+# Volume 40? No.17, February 2012
+
 # Note that there are errors in the RGB->HSV conversion formula. See Wikipedia instead.
+# The article contains numerous errors, the examples don't match with definitions,
+# and the exact methods are sometimes vague. I've done my best to develop a method
+# that is both practical and close to the spirit of the authors' ideas.
+
+# COMMENTS:
+
+## Kappa is the same as the following (measure of "compactness"):
+#C <- sum(cos(hues[mask]))
+#S <- sum(sin(hues[mask]))
+#R <- sqrt(C^2 + S^2)
+#n <- length(hues[mask])
+#kappa <- A1inv(R/n)
+
+## The exact computation of DS leads to a huge computational task.
+#k <- length(row.idx)
+#ds <- 0
+#for (i in 1:k) {
+#  local.dist <- sum(sqrt((row.idx - row.idx[i])^2 + (col.idx - col.idx[i])^2)) / k
+#  ds <- ds + local.dist
+#}
+#spatial.dispersion <- ds / k
+## OR
+#spatial.dispersion <- sum(sapply(1:length(row.idx), function(i) sqrt((row.idx - row.idx[i])^2 + (col.idx - col.idx[i])^2))) / npdc^2
+
+## This is an average distance between pixels that have dominant color.
+## I still think the value should be normalized somehow, for example dividing
+## by an average distance between two pixels in the whole image, not just
+## in dominant color. Otherwise image size has an effect on the absolute
+## magnitude of the number. In the original article the values
+## like 0.0020936 don't quite match with the definitions.
+
 dispersionDominantColor <- function(img.hsv) {
   hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
-  mask <- !is.na(hues)  # existing hues
+  nr <- nrow(hues)
+  nc <- ncol(hues)
+  mask <- !is.na(hues)  # existing hues, excluding white and black
   mu <- atan2(sum(sin(hues[mask])), sum(cos(hues[mask])))%%(2*pi)  # angles between hues
-  # Next we should estimate the kappa parameter of a von Mises distribution in a circular domain.
-  print(paste('mu (degrees):', radianToDegree(mu)))
+  # Estimate kappa parameter on a von Mises distribution in a circular domain.
   kappa <- A1inv(mean(cos(hues[mask] - mu)))
-  print(paste('Old try:', kappa))
 
-  C <- sum(cos(hues[mask]))
-  S <- sum(sin(hues[mask]))
-  R <- sqrt(C^2 + S^2)
-  n <- length(hues[mask])
-  print(paste('New try:', A1inv(R/n)))  # identical to 'old try'
+  # NPDC and pi measures
+  ######################
+  # distances between hues (in radians)
+  dist.raw <- abs(hues[mask] - mu)
+  dist <- pmin(dist.raw, 2*pi - dist.raw)  # distance between hues, mod 2*pi
+  npdc.mask <- dist <= 1/kappa  # article has a different interpretation of 1/kappa ??
+  npdc <- sum(npdc.mask)  # pixels in a dominant color (within range kappa)
+  pi.measure <- npdc / length(hues[mask])
+  px.row <- matrix(1:length(hues) %% nr, nrow=nr)
+  px.col <- matrix(1:length(hues) %/% nr, nrow=nr)
+  
+  # Spatial dispersion, by approximation
+  ######################################
+  row.idx <- c(px.row[mask][npdc.mask])
+  col.idx <- c(px.col[mask][npdc.mask])
+  npdc.nr <- length(row.idx)
+  npdc.nc <- length(col.idx)
 
-  magic <- 45  # With this multiplier the kappa values match with those of two images in the article (for an unknown reason).
-  return(kappa*magic)
+  # Approximation for all Euclidean distances, for custom normalization
+  num.samples <- 10000  # just enough to get a hint about the avg distance
+  smpl <- function(values) sample(values, num.samples, replace=TRUE)
+  approx.dist <- mean(sqrt((smpl(1:nr) - smpl(1:nr))^2 + (smpl(1:nc) - smpl(1:nc))^2))
+
+  # NPDC Euclidean distance approximation by random sample
+  px.1 <- smpl(1:npdc.nr)
+  px.2 <- smpl(1:npdc.nr)
+  npdc.approx.dist <- mean(sqrt((row.idx[px.1] - row.idx[px.2])^2 + (col.idx[px.1] - col.idx[px.2])^2))
+
+  spatial.dispersion <- npdc.approx.dist
+  custom.ds <- min(1, npdc.approx.dist / approx.dist)  # cap to 1 (exceeds by random variation)
+
+  return(list(mu=mu, kappa=kappa, pi=pi.measure, ds=spatial.dispersion, custom.ds=custom.ds))
 }
+
 
 
 ##########
@@ -627,38 +713,71 @@ dispersionDominantColor <- function(img.hsv) {
 ##########
 
 main <- function() {
-  #filename <- '../examples/small_grid.png'
+  do.view <- FALSE
+  print('=== START ===')
+  filename <- '../examples/small_grid.png'
   #filename <- '../examples/blue_shift.png'
-  filename <- '../examples/no_shift.png'
+  #filename <- '../examples/no_shift.png'
   #filename <- '../examples/niemi.png'
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
   #filename <- '../examples/K5_10994.JPG'
+  #filename <- '../examples/green_grass_blue_sky.png'
+  #filename <- '../examples/dark_city.png'
+  #filename <- '../examples/violetred.png'
+  #filename <- '../examples/bluehue.png'
+  #filename <- '../examples/temple_set/temple-a-original.png'
+  #filename <- '../examples/temple_set/temple-b-blue.png'
+  #filename <- '../examples/temple_set/temple-c-cyan.png'
+  #filename <- '../examples/temple_set/temple-d-yellow.png'
+  #filename <- '../examples/temple_set/temple-e-magenta.png'
+  #filename <- '../examples/temple_set/temple-f-red.png'
+  #filename <- '../examples/temple_set/temple-g-green.png'
+  #filename <- '../examples/temple_set/temple-h-noise.png'
+  #filename <- '../examples/temple_set/temple-i-contrast.png'
+  #filename <- '../examples/temple_set/temple-j-colornoise.png'
+  #filename <- '../examples/temple_set/temple-k-gaussianblur.png'
+  
   img <- readImage(filename)
+  print(paste('Processing image:', filename))
   for (channel in RGB) {
-    view(extractRGBChannel(img,channel), title=paste(channel$name, 'color channel'))
+    if (do.view) view(extractRGBChannel(img,channel), title=paste(channel$name, 'color channel'))
   }
-  view(luminance(img), title='Luminance')
+  if (do.view) view(luminance(img), title='Luminance')
   blurred <- meanBlurred(img)
-  #for (channel in RGB) {
-  #  view(extractRGBChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
-  #}
-  view(rescaleImage(blurred), title='Blurred')
+  for (channel in RGB) {
+    if (do.view) view(extractRGBChannel(blurred,channel), title=paste('Blurred in', channel$name, 'color channel'))
+  }
+  if (do.view) view(rescaleImage(blurred), title='Blurred')
   blurMap <- blurAmount(img, 5)
-  view(blurMap, title='Blurriness')
+  if (do.view) view(blurMap, title='Blurriness')
   sharpMap <- sharpAmount(img, 5)
-  view(sharpMap, title='Sharpness')
-  view(adjustBlur(img, 1.0, 5), title='Blur plus 1.0')
-  view(adjustBlur(img, -1.0, 5), title='Blur minus 1.0')
+  if (do.view) view(sharpMap, title='Sharpness')
+  if (do.view) view(adjustBlur(img, 1.0, 5), title='Blur plus 1.0')
+  if (do.view) view(adjustBlur(img, -1.0, 5), title='Blur minus 1.0')
   gaussian.blurred <- gaussianBlurred(img, 1.0)
-  view(gaussian.blurred, title='Gaussian blurred')
-  view(img, title='Full RGB image')
+  if (do.view) view(gaussian.blurred, title='Gaussian blurred')
+  if (do.view) view(img, title='Full RGB image')
   blur <- blurAnnoyanceQuality(img, f.len=9)
   print(paste('Blur annoyance quality (0--1):', blur))  # more is better
   mdwe.score <- mdweVertical(img)
   print(paste('MDWE horizontal blur width:', mdwe.score[['score']]))  # smaller is better
   print(paste('MDWE Gaussian quality (0--1):', mdwe.score[['gaussian']]))  # greater is better
   print(paste('MDWE JPEG2000 quality (0--1):', mdwe.score[['jpeg2k']]))  # greater is better
-  print(paste('Color dispersion(kappa):', dispersionDominantColor(toHSV(img))))
+  ddc <- dispersionDominantColor(toHSV(img))
+
+  # Dominant direction, spread, and portion of the dominant color.
+  # Dominant hue as an angle
+  print(paste('Color dispersion(mu):', ddc$mu, 'and in degrees', radianToDegree(ddc$mu)))
+  # Compactness of hues, larger kappa means narrower hues
+  print(paste('Color dispersion(kappa):', ddc$kappa))
+  # Proportion of pixels whose hue is close to dominant
+  print(paste('Color dispersion(pi):', ddc$pi))
+  # Spatial dispersion: mean distance of pixels that are dominant
+  print(paste('Color dispersion(ds):', ddc$ds, 'px'))
+  # Custom normalized spatial dispersion: dominantdistances / alldistances
+  print(paste('Color dispersion(custom.ds):', ddc$custom.ds))
+  if (do.view) viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
+  print('===  END  ===')
 }
 
 main()
@@ -715,4 +834,31 @@ main()
 
 # Von Mises test data:
 # http://www.stat.sfu.ca/content/dam/sfu/stat/alumnitheses/MiscellaniousTheses/Bentley-2006.pdf
-# d <- c(0,0,0,15,45,68,100,110,113,135,135,140,140,155,165,165,169,180,180,180,180,180,180,180,189,206,209,210,214,215,225,226,230,235,245,250,255,255,260,260,260,260,270,270)
+#   degrees <- c(0,0,0,15,45,68,100,110,113,135,135,140,140,155,165,165,169,180,180,180,180,180,180,180,189,206,209,210,214,215,225,226,230,235,245,250,255,255,260,260,260,260,270,270)
+#   rads <- degrees / 360 * (2*pi)
+#   mu <- atan2(sum(sin(rads)), sum(cos(rads))) %% (2*pi)
+#   kappa <- est.kappa(rads)
+# Compare:
+#   hist(degrees)
+#   hist(as.numeric(rvonmises(10000, mu, kappa)) / (2*pi) * 360)
+# Expected: maximum likelihood parameter estimate:
+#   mu; stderr(mu); kappa; stderr(kappa)
+#   199.4 degrees; 12.2 degrees; 1.07; 0.26
+#
+# Another test data:
+#   degrees <- c(1.9, 12.4, 28.1, 28.9, 41.5, 46.0, 55.5, 56.6, 72.6, 75.5,
+#                86.1, 109.6, 111.0, 115.3, 123.3, 127.6, 139.6, 140.8, 142.0, 147.5,
+#                147.7, 149.8, 150.3, 154.1, 160.0, 161.9, 162.1, 162.4, 162.7, 163.1,
+#                163.7, 168.1, 170.2, 170.4, 171.9, 172.2, 172.5, 175.4, 175.6, 175.7,
+#                176.5, 177.1, 177.7, 179.0, 179.4, 179.7, 180.6, 180.7, 180.7, 181.1,
+#                181.7, 182.0, 183.8, 184.1, 185.3, 188.5, 188.8, 189.0, 189.8, 192.6,
+#                193.9, 194.9, 195.5, 195.7, 195.9, 196.0, 196.2, 196.4, 196.6, 198.0,
+#                199.2, 199.8, 202.4, 202.9, 204.8, 206.7, 207.6, 210.5, 210.9, 212.4,
+#                212.5, 213.1, 214.8, 218.0, 219.6, 220.6, 220.7, 224.5, 228.2, 232.4,
+#                254.5, 255.0, 266.0, 277.4, 282.9, 289.4, 295.4, 301.1, 326.4, 354.9)
+#   rads <- degrees / 360 * (2*pi)
+#   mu <- atan2(sum(sin(rads)), sum(cos(rads))) %% (2*pi)
+#   kappa <- est.kappa(rads)
+# Expected: maximum likelihood parameter estimate:
+#   mu; stderr(mu); kappa; stderr(kappa)
+#   183.3 degrees; 5.9 degrees; 1.55; 0.21
