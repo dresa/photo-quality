@@ -25,6 +25,18 @@ SATURATION <- list(idx=2, name='SATURATION')
 VALUE <- list(idx=3, name='VALUE')
 HSV <- list(HUE, SATURATION, VALUE)
 
+# Image construction from separate channels
+createImageRGB <- function(reds, greens, blues) {
+  if (!all(dim(reds) == dim(blues)) | !all(dim(blues) == dim(greens))) {
+    stop('Mismatch in matrix sizes from R G and B channels.')
+  }
+  img <- array(dim=c(nrow(reds), ncol(reds), length(RGB)))
+  img[ , , RED$idx] <- reds
+  img[ , , BLUE$idx] <- blues
+  img[ , , GREEN$idx] <- greens
+  return(img)
+}
+
 # Read image file (either a valid PNG or JPEG extension required)
 readImage <- function(filename) {
   refname <- tolower(trimws(filename))
@@ -54,7 +66,7 @@ toHSV <- function(img.rgb, radians=FALSE) {
   green <- extractRGBChannel(img.rgb, GREEN)
   blue <- extractRGBChannel(img.rgb, BLUE)
   # Temporary variables
-  dims <- dim(red)
+  dims <- if (is.matrix(red)) dim(red) else c(length(red), 1)
   max.values <- pmax(red, green, blue)
   diffs <- max.values - pmin(red, green, blue)
   # Compute H(ue), S(saturation), and V(alue):
@@ -74,13 +86,143 @@ toHSV <- function(img.rgb, radians=FALSE) {
   hues[red.mask]   <- angle * ((green[red.mask]  - blue[red.mask])   / diffs[red.mask]   + R)%%6
   hues[green.mask] <- angle * ((blue[green.mask] - red[green.mask])  / diffs[green.mask] + G)%%6
   hues[blue.mask]  <- angle * ((red[blue.mask]   - green[blue.mask]) / diffs[blue.mask]  + B)%%6
-  hues[max.values==0] <- NA  # undefined hue is not needed; red (zero degrees) as default
-  hues[diffs==0] <- NA  # undefined hue is not needed; red (zero degrees) as default
+  hues[max.values==0] <- NA  # undefined hue is not needed; NA as default
+  hues[diffs==0] <- NA  # undefined hue is not needed; NA as default
   # V(alue):
-  values <- max.values
+  values <- max.values / 255
   # Return an HSV image as an (M x N x 3) array
   dim.names <- list(NULL, NULL, c('Hue', 'Saturation', 'Value'))
   return(array(c(hues, saturations, values), dim=c(dims[1], dims[2], 3), dimnames=dim.names))
+}
+
+
+# Two alternative implementations of the HSV-->RGB conversion:
+
+# Convert HSV image to a RGB image. Assumption: RGB values are between 0 and 1.
+# Hues are degrees between 0 and 360; Saturations and Values are between 0 and 1.
+toRGB <- function(img.hsv, radians=FALSE) {
+  # Extract H, S, and V color channels
+  hue <- extractHSVChannel(img.hsv, HUE)
+  saturation <- extractHSVChannel(img.hsv, SATURATION)
+  value <- extractHSVChannel(img.hsv, VALUE)
+  # Preprocess hues: replace undefined hues with red (zero in radians and degrees).
+  # Actual hue should not matter since value or saturation should be zero anyway.
+  hue[is.na(hue)] <- 0
+  # Convenience variables
+  dims <- if (is.matrix(hue)) dim(hue) else c(length(hue), 1)
+  chroma <- value * saturation
+  angle <- if (radians) pi/3 else 60  # 60 degrees
+  x <- chroma * (1 - abs(((hue / angle) %% 2)- 1))
+  m <- value - chroma
+  
+  # Conversion pre-processing
+  red.add <- array(dim=dims)
+  green.add <- array(dim=dims)
+  blue.add <- array(dim=dims)
+  hue.group <- hue %/% angle
+  # proceed by groups
+  group.0 <- hue.group == 0
+  red.add[group.0] <- chroma[group.0]
+  green.add[group.0] <- x[group.0]
+  blue.add[group.0] <- 0
+  group.1 <- hue.group == 1
+  red.add[group.1] <- x[group.1]
+  green.add[group.1] <- chroma[group.1]
+  blue.add[group.1] <- 0
+  group.2 <- hue.group == 2
+  red.add[group.2] <- 0
+  green.add[group.2] <- chroma[group.2]
+  blue.add[group.2] <- x[group.2]
+  group.3 <- hue.group == 3
+  red.add[group.3] <- 0
+  green.add[group.3] <- x[group.3]
+  blue.add[group.3] <- chroma[group.3]
+  group.4 <- hue.group == 4
+  red.add[group.4] <- x[group.4]
+  green.add[group.4] <- 0
+  blue.add[group.4] <- chroma[group.4]
+  group.5 <- hue.group == 5
+  red.add[group.5] <- chroma[group.5]
+  green.add[group.5] <- 0
+  blue.add[group.5] <- x[group.5]
+
+  # Wrap it up
+  red <- m + red.add
+  green <- m + green.add
+  blue <- m + blue.add
+  img.rgb <- 255 * createImageRGB(red, green, blue)
+  return(img.rgb)
+}
+
+
+
+# Hmm.. the following function takes three times as much computation time as previous one.
+
+# Convert HSV image to a RGB image. Assumption: RGB values are between 0 and 1.
+# Hues are degrees between 0 and 360; Saturations and Values are between 0 and 1.
+toRGB <- function(img.hsv, radians=FALSE) {
+  # Extract H, S, and V color channels
+  hue <- extractHSVChannel(img.hsv, HUE)
+  saturation <- extractHSVChannel(img.hsv, SATURATION)
+  value <- extractHSVChannel(img.hsv, VALUE)
+  # Preprocess hues: replace undefined hues with red (zero in radians and degrees).
+  # Actual hue should not matter since value or saturation should be zero anyway.
+  hue[is.na(hue)] <- 0
+  # Convenience variables
+  dims <- if (is.matrix(hue)) dim(hue) else c(length(hue), 1)
+  chroma <- value * saturation
+  angle <- if (radians) pi/3 else 60  # 60 degrees
+  x <- chroma * (1 - abs(((hue / angle) %% 2)- 1))
+  m <- value - chroma
+  # Conversion pre-processing
+  hg <- hue %/% angle  # hue group
+  g.cnt <- table(hg)  # group counts
+  dim.names <- list(NULL, NULL, c('Red', 'Green', 'Blue'))
+  img.rgb <- array(0, dim=c(dims, length(RGB)), dimnames=dim.names)
+  # Proceed by hue blocks, in R,G,B order
+  isOk <- function(group.id) as.character(group.id) %in% names(g.cnt)
+  if (isOk(0)) img.rgb[hg==0] <- c(chroma[hg==0], x[hg==0], rep(0, g.cnt[['0']]))
+  if (isOk(1)) img.rgb[hg==1] <- c(x[hg==1], chroma[hg==1], rep(0, g.cnt[['1']]))
+  if (isOk(2)) img.rgb[hg==2] <- c(rep(0, g.cnt[['2']]), chroma[hg==2], x[hg==2])
+  if (isOk(3)) img.rgb[hg==3] <- c(rep(0, g.cnt[['3']]), x[hg==3], chroma[hg==3])
+  if (isOk(4)) img.rgb[hg==4] <- c(x[hg==4], rep(0, g.cnt[['4']]), chroma[hg==4])
+  if (isOk(5)) img.rgb[hg==5] <- c(chroma[hg==5], rep(0, g.cnt[['5']]), x[hg==5])
+  # Return a RGB image as an (M x N x 3) array
+  img.rgb <- 255 * (img.rgb + rep(m, 3))
+  return(img.rgb)
+}
+
+test <- function() {
+  set.seed(1)
+  d <- c(4,12,3)
+  rgb.vec <- sample(0:255, prod(d), replace=TRUE)
+  rgb <- array(rgb.vec, dim=d)
+  hsv.ref <- rgb2hsv(matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
+  hsv.val <- toHSV(rgb)
+  err.hsv <- max(abs(hsv.ref - matrix(c(hsv.val[,,1]/360, hsv.val[,,2], hsv.val[,,3]), nrow=3, byrow=TRUE)))
+  print(paste('Matrix RGB->HSV error', err.hsv))
+  rgb.roundtrip <- toRGB(hsv.val)
+  err.rgb <- max(abs(rgb.roundtrip - rgb))
+  print(paste('Matrix HSV->RGB error', err.rgb))
+  #print(rgb)
+  #print(rgb.roundtrip)
+  #print(hsv.val)
+  
+  # just one
+  rgb <- array(c(200, 100, 150), dim=c(1,1,3))
+  err.hsv <- max(abs(as.vector(toHSV(rgb)) - as.vector(rgb2hsv(200, 100, 150))*c(360,1,1)))
+  print(paste('Single HSV error', err.hsv))
+  err.rgb <- max(abs(as.vector(toRGB(toHSV(rgb))) - as.vector(rgb)))
+  print(paste('Single RGB error', err.rgb))
+}
+
+speedTest <- function() {
+  set.seed(1)
+  d <- c(1000,1500,3)
+  rgb.vec <- sample(0:255, prod(d), replace=TRUE)
+  rgb <- array(rgb.vec, dim=d)
+  st <- Sys.time(); cmp <- max(abs(toRGB(toHSV(rgb)) - rgb)); et <- Sys.time();
+  print(paste('Speed test: result', cmp, ', time', et - st))
 }
 
 
@@ -499,6 +641,18 @@ blurAmount <- function(img, size=3) {
 }
 
 
+# Transform RGB colors so that image contains pure bright hues.
+toBrightRGB <- function(img.rgb) {
+  img.hsv <- toHSV(img.rgb)
+  hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
+  saturations <- matrix(1, nrow=nrow(hues), ncol=ncol(hues))
+  values <- matrix(1, nrow=nrow(hues), ncol=ncol(hues))
+  HSVtoRGB
+  img.rgb.bright <- createImageRGB(reds, greens, blues)
+  return(img.rgb.bright)
+}
+
+
 ######################
 ## QUALITY MEASURES ##
 ######################
@@ -713,7 +867,7 @@ dispersionDominantColor <- function(img.hsv) {
 ##########
 
 main <- function() {
-  do.view <- FALSE
+  do.view <- TRUE  #FALSE
   print('=== START ===')
   filename <- '../examples/small_grid.png'
   #filename <- '../examples/blue_shift.png'
@@ -725,6 +879,7 @@ main <- function() {
   #filename <- '../examples/dark_city.png'
   #filename <- '../examples/violetred.png'
   #filename <- '../examples/bluehue.png'
+  #filename <- '../examples/penguin.jpg'
   #filename <- '../examples/temple_set/temple-a-original.png'
   #filename <- '../examples/temple_set/temple-b-blue.png'
   #filename <- '../examples/temple_set/temple-c-cyan.png'
@@ -777,6 +932,7 @@ main <- function() {
   # Custom normalized spatial dispersion: dominantdistances / alldistances
   print(paste('Color dispersion(custom.ds):', ddc$custom.ds))
   if (do.view) viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
+  if (do.view) view(toHues(img), title='Pure hues')
   print('===  END  ===')
 }
 
