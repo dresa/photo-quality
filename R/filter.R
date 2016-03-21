@@ -58,8 +58,11 @@ extractRGBChannel <- function(img.rgb, col.channel) img.rgb[ , , col.channel$idx
 
 extractHSVChannel <- function(img.hsv, hsv.channel) img.hsv[ , , hsv.channel$idx]
 
-# Convert RGB image to an HSV image. Assumption: RGB values are between 0 and 1.
-# Hues are degrees between 0 and 360; Saturations and Values are between 0 and 1.
+# Convert RGB image to an HSV image.
+# Assumptions:
+#   RGB values are integers between 0 and 255.
+#   Hues are degrees between 0 and 360 (or marked as radians);
+#   Saturations and Values are between 0 and 1.
 toHSV <- function(img.rgb, radians=FALSE) {
   # Extract R,G, and B color channels
   red <- extractRGBChannel(img.rgb, RED)
@@ -96,10 +99,11 @@ toHSV <- function(img.rgb, radians=FALSE) {
 }
 
 
-# Two alternative implementations of the HSV-->RGB conversion:
-
-# Convert HSV image to a RGB image. Assumption: RGB values are between 0 and 1.
-# Hues are degrees between 0 and 360; Saturations and Values are between 0 and 1.
+# Convert HSV image to a RGB image.
+# Assumptions:
+#   RGB values are integers between 0 and 255.
+#   Hues are degrees between 0 and 360 (or marked as radians);
+#   Saturations and Values are between 0 and 1.
 toRGB <- function(img.hsv, radians=FALSE) {
   # Extract H, S, and V color channels
   hue <- extractHSVChannel(img.hsv, HUE)
@@ -120,77 +124,23 @@ toRGB <- function(img.hsv, radians=FALSE) {
   green.add <- array(dim=dims)
   blue.add <- array(dim=dims)
   hue.group <- hue %/% angle
-  # proceed by groups
-  group.0 <- hue.group == 0
-  red.add[group.0] <- chroma[group.0]
-  green.add[group.0] <- x[group.0]
-  blue.add[group.0] <- 0
-  group.1 <- hue.group == 1
-  red.add[group.1] <- x[group.1]
-  green.add[group.1] <- chroma[group.1]
-  blue.add[group.1] <- 0
-  group.2 <- hue.group == 2
-  red.add[group.2] <- 0
-  green.add[group.2] <- chroma[group.2]
-  blue.add[group.2] <- x[group.2]
-  group.3 <- hue.group == 3
-  red.add[group.3] <- 0
-  green.add[group.3] <- x[group.3]
-  blue.add[group.3] <- chroma[group.3]
-  group.4 <- hue.group == 4
-  red.add[group.4] <- x[group.4]
-  green.add[group.4] <- 0
-  blue.add[group.4] <- chroma[group.4]
-  group.5 <- hue.group == 5
-  red.add[group.5] <- chroma[group.5]
-  green.add[group.5] <- 0
-  blue.add[group.5] <- x[group.5]
-
+  ## proceed by groups
+  for (group.id in 0:5) {
+    group.px <- hue.group == group.id
+    C <- chroma[group.px]
+    X <- x[group.px]
+    red.add[group.px] <-   switch(group.id + 1, C, X, 0, 0, X, C)
+    green.add[group.px] <- switch(group.id + 1, X, C, C, X, 0, 0)
+    blue.add[group.px] <-  switch(group.id + 1, 0, 0, X, C, C, X)
+  }
   # Wrap it up
-  red <- m + red.add
-  green <- m + green.add
-  blue <- m + blue.add
-  img.rgb <- 255 * createImageRGB(red, green, blue)
+  red <- round(255 * (m + red.add))
+  green <- round(255 * (m + green.add))
+  blue <- round(255 * (m + blue.add))
+  img.rgb <- createImageRGB(red, green, blue)
   return(img.rgb)
 }
 
-
-
-# Hmm.. the following function takes three times as much computation time as previous one.
-
-# Convert HSV image to a RGB image. Assumption: RGB values are between 0 and 1.
-# Hues are degrees between 0 and 360; Saturations and Values are between 0 and 1.
-toRGB <- function(img.hsv, radians=FALSE) {
-  # Extract H, S, and V color channels
-  hue <- extractHSVChannel(img.hsv, HUE)
-  saturation <- extractHSVChannel(img.hsv, SATURATION)
-  value <- extractHSVChannel(img.hsv, VALUE)
-  # Preprocess hues: replace undefined hues with red (zero in radians and degrees).
-  # Actual hue should not matter since value or saturation should be zero anyway.
-  hue[is.na(hue)] <- 0
-  # Convenience variables
-  dims <- if (is.matrix(hue)) dim(hue) else c(length(hue), 1)
-  chroma <- value * saturation
-  angle <- if (radians) pi/3 else 60  # 60 degrees
-  x <- chroma * (1 - abs(((hue / angle) %% 2)- 1))
-  m <- value - chroma
-  # Conversion pre-processing
-  hg <- hue %/% angle  # hue group
-  g.cnt <- table(hg)  # group counts
-  dim.names <- list(NULL, NULL, c('Red', 'Green', 'Blue'))
-  img.rgb <- array(0, dim=c(dims, length(RGB)), dimnames=dim.names)
-  # Proceed by hue blocks, in R,G,B order
-  isOk <- function(group.id) as.character(group.id) %in% names(g.cnt)
-  if (isOk(0)) img.rgb[hg==0] <- c(chroma[hg==0], x[hg==0], rep(0, g.cnt[['0']]))
-  if (isOk(1)) img.rgb[hg==1] <- c(x[hg==1], chroma[hg==1], rep(0, g.cnt[['1']]))
-  if (isOk(2)) img.rgb[hg==2] <- c(rep(0, g.cnt[['2']]), chroma[hg==2], x[hg==2])
-  if (isOk(3)) img.rgb[hg==3] <- c(rep(0, g.cnt[['3']]), x[hg==3], chroma[hg==3])
-  if (isOk(4)) img.rgb[hg==4] <- c(x[hg==4], rep(0, g.cnt[['4']]), chroma[hg==4])
-  if (isOk(5)) img.rgb[hg==5] <- c(chroma[hg==5], rep(0, g.cnt[['5']]), x[hg==5])
-  # Return a RGB image as an (M x N x 3) array
-  img.rgb <- 255 * (img.rgb + rep(m, 3))
-  return(img.rgb)
-}
 
 test <- function() {
   set.seed(1)
@@ -225,8 +175,18 @@ speedTest <- function() {
   d <- c(1000,1500,3)
   rgb.vec <- sample(0:255, prod(d), replace=TRUE)
   rgb <- array(rgb.vec, dim=d)
+
+  refFunc <- function(rgb) {
+    hsv.ref <- rgb2hsv(matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
+    rgb.ref <- col2rgb(hsv(hsv.ref[1, ], hsv.ref[2, ], hsv.ref[3, ]))
+    return(array(c(rgb.ref[1, ], rgb.ref[2, ], rgb.ref[3, ]), dim=d))
+  }
+  
   st <- Sys.time(); cmp <- max(abs(toRGB(toHSV(rgb)) - rgb)); et <- Sys.time();
-  print(paste('Speed test: result', cmp, ', time', et - st))
+  print(paste('Speed test: maxerror', cmp, ', time', et - st))
+
+  st.ref <- Sys.time(); cmp.ref <- max(abs(refFunc(rgb) - rgb)); et.ref <- Sys.time();
+  print(paste('Reference speed test: maxerror', cmp.ref, ', time', et.ref - st.ref))
 }
 
 
