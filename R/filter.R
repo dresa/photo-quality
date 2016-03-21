@@ -197,17 +197,21 @@ test <- function() {
   d <- c(4,12,3)
   rgb.vec <- sample(0:255, prod(d), replace=TRUE)
   rgb <- array(rgb.vec, dim=d)
+
+  # reference data: use R's own RGB->HSV->RGB conversion
   hsv.ref <- rgb2hsv(matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
+  rgb.ref <- col2rgb(hsv(hsv.ref[1, ], hsv.ref[2, ], hsv.ref[3, ]))
+  roundtrip.ok <- all(rgb == array(c(rgb.ref[1, ], rgb.ref[2, ], rgb.ref[3, ]), dim=d))
+  if (!roundtrip.ok) stop('internal test failed: RGB->HSV->RGB conversion')
+  
+  # custom implementations
   hsv.val <- toHSV(rgb)
   err.hsv <- max(abs(hsv.ref - matrix(c(hsv.val[,,1]/360, hsv.val[,,2], hsv.val[,,3]), nrow=3, byrow=TRUE)))
   print(paste('Matrix RGB->HSV error', err.hsv))
   rgb.roundtrip <- toRGB(hsv.val)
   err.rgb <- max(abs(rgb.roundtrip - rgb))
   print(paste('Matrix HSV->RGB error', err.rgb))
-  #print(rgb)
-  #print(rgb.roundtrip)
-  #print(hsv.val)
-  
+
   # just one
   rgb <- array(c(200, 100, 150), dim=c(1,1,3))
   err.hsv <- max(abs(as.vector(toHSV(rgb)) - as.vector(rgb2hsv(200, 100, 150))*c(360,1,1)))
