@@ -28,14 +28,28 @@ HSV <- list(HUE, SATURATION, VALUE)
 # Image construction from separate channels
 createImageRGB <- function(reds, greens, blues) {
   if (!all(dim(reds) == dim(blues)) | !all(dim(blues) == dim(greens))) {
-    stop('Mismatch in matrix sizes from R G and B channels.')
+    stop('Mismatch in matrix sizes from R, G, and B channels.')
   }
-  img <- array(dim=c(nrow(reds), ncol(reds), length(RGB)))
+  dim.names <- list(NULL, NULL, c('Red', 'Green', 'Blue'))
+  img <- array(dim=c(nrow(reds), ncol(reds), length(RGB)), dimnames=dim.names)
   img[ , , RED$idx] <- reds
-  img[ , , BLUE$idx] <- blues
   img[ , , GREEN$idx] <- greens
+  img[ , , BLUE$idx] <- blues
   return(img)
 }
+
+createImageHSV <- function(hues, saturations, values) {
+  if (!all(dim(hues) == dim(saturations)) | !all(dim(saturations) == dim(values))) {
+    stop('Mismatch in matrix sizes from H, S, and V channels.')
+  }
+  dim.names <- list(NULL, NULL, c('Hue', 'Saturation', 'Value'))
+  img <- array(dim=c(nrow(hues), ncol(hues), length(HSV)), dimnames=dim.names)
+  img[ , , HUE$idx] <- hues
+  img[ , , SATURATION$idx] <- saturations
+  img[ , , VALUE$idx] <- values
+  return(img)
+}
+
 
 # Read image file (either a valid PNG or JPEG extension required)
 readImage <- function(filename) {
@@ -60,22 +74,22 @@ extractHSVChannel <- function(img.hsv, hsv.channel) img.hsv[ , , hsv.channel$idx
 
 # Convert RGB image to an HSV image.
 # Assumptions:
-#   RGB values are integers between 0 and 255.
+#   RGB values are between 0 and 1.
 #   Hues are degrees between 0 and 360 (or marked as radians);
 #   Saturations and Values are between 0 and 1.
-toHSV <- function(img.rgb, radians=FALSE) {
+toHSV <- function(img.rgb, radians=FALSE, max.value=1) {
   # Extract R,G, and B color channels
   red <- extractRGBChannel(img.rgb, RED)
   green <- extractRGBChannel(img.rgb, GREEN)
   blue <- extractRGBChannel(img.rgb, BLUE)
   # Temporary variables
   dims <- if (is.matrix(red)) dim(red) else c(length(red), 1)
-  max.values <- pmax(red, green, blue)
-  diffs <- max.values - pmin(red, green, blue)
+  max.channels <- pmax(red, green, blue)
+  diffs <- max.channels - pmin(red, green, blue)
   # Compute H(ue), S(saturation), and V(alue):
   # S(aturation):
-  saturations <- diffs / max.values
-  saturations[max.values == 0] <- 0  # replace Inf by zero (originates from division by zero)
+  saturations <- diffs / max.channels
+  saturations[max.channels == 0] <- 0  # replace Inf by zero (originates from division by zero)
   # H(ue):
   R<-0; G<-2; B<-4  # additive color-shift values in the hue formula
   max.layer <- array(R, dim=dims)  # which color layer has maximum value? R, G, or B?
@@ -89,10 +103,10 @@ toHSV <- function(img.rgb, radians=FALSE) {
   hues[red.mask]   <- angle * ((green[red.mask]  - blue[red.mask])   / diffs[red.mask]   + R)%%6
   hues[green.mask] <- angle * ((blue[green.mask] - red[green.mask])  / diffs[green.mask] + G)%%6
   hues[blue.mask]  <- angle * ((red[blue.mask]   - green[blue.mask]) / diffs[blue.mask]  + B)%%6
-  hues[max.values==0] <- NA  # undefined hue is not needed; NA as default
+  hues[max.channels==0] <- NA  # undefined hue is not needed; NA as default
   hues[diffs==0] <- NA  # undefined hue is not needed; NA as default
   # V(alue):
-  values <- max.values / 255
+  values <- max.channels / max.value
   # Return an HSV image as an (M x N x 3) array
   dim.names <- list(NULL, NULL, c('Hue', 'Saturation', 'Value'))
   return(array(c(hues, saturations, values), dim=c(dims[1], dims[2], 3), dimnames=dim.names))
@@ -101,17 +115,17 @@ toHSV <- function(img.rgb, radians=FALSE) {
 
 # Convert HSV image to a RGB image.
 # Assumptions:
-#   RGB values are integers between 0 and 255.
+#   RGB values are between 0 and 1.
 #   Hues are degrees between 0 and 360 (or marked as radians);
 #   Saturations and Values are between 0 and 1.
-toRGB <- function(img.hsv, radians=FALSE) {
+toRGB <- function(img.hsv, radians=FALSE, na.hue=0) {
   # Extract H, S, and V color channels
   hue <- extractHSVChannel(img.hsv, HUE)
   saturation <- extractHSVChannel(img.hsv, SATURATION)
   value <- extractHSVChannel(img.hsv, VALUE)
-  # Preprocess hues: replace undefined hues with red (zero in radians and degrees).
+  # Preprocess hues: replace undefined hues with default red (zero in radians and degrees).
   # Actual hue should not matter since value or saturation should be zero anyway.
-  hue[is.na(hue)] <- 0
+  hue[is.na(hue)] <- na.hue
   # Convenience variables
   dims <- if (is.matrix(hue)) dim(hue) else c(length(hue), 1)
   chroma <- value * saturation
@@ -134,11 +148,7 @@ toRGB <- function(img.hsv, radians=FALSE) {
     blue.add[group.px] <-  switch(group.id + 1, 0, 0, X, C, C, X)
   }
   # Wrap it up
-  red <- round(255 * (m + red.add))
-  green <- round(255 * (m + green.add))
-  blue <- round(255 * (m + blue.add))
-  img.rgb <- createImageRGB(red, green, blue)
-  return(img.rgb)
+  return(createImageRGB(m + red.add, m + green.add, m + blue.add))
 }
 
 
@@ -146,12 +156,12 @@ test <- function() {
   set.seed(1)
   d <- c(4,12,3)
   rgb.vec <- sample(0:255, prod(d), replace=TRUE)
-  rgb <- array(rgb.vec, dim=d)
+  rgb <- array(rgb.vec, dim=d) / 255
 
   # reference data: use R's own RGB->HSV->RGB conversion
-  hsv.ref <- rgb2hsv(matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
+  hsv.ref <- rgb2hsv(255*matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
   rgb.ref <- col2rgb(hsv(hsv.ref[1, ], hsv.ref[2, ], hsv.ref[3, ]))
-  roundtrip.ok <- all(rgb == array(c(rgb.ref[1, ], rgb.ref[2, ], rgb.ref[3, ]), dim=d))
+  roundtrip.ok <- all(rgb == array(c(rgb.ref[1, ], rgb.ref[2, ], rgb.ref[3, ]), dim=d) / 255)
   if (!roundtrip.ok) stop('internal test failed: RGB->HSV->RGB conversion')
   
   # custom implementations
@@ -163,7 +173,7 @@ test <- function() {
   print(paste('Matrix HSV->RGB error', err.rgb))
 
   # just one
-  rgb <- array(c(200, 100, 150), dim=c(1,1,3))
+  rgb <- array(c(200, 100, 150), dim=c(1,1,3)) / 255
   err.hsv <- max(abs(as.vector(toHSV(rgb)) - as.vector(rgb2hsv(200, 100, 150))*c(360,1,1)))
   print(paste('Single HSV error', err.hsv))
   err.rgb <- max(abs(as.vector(toRGB(toHSV(rgb))) - as.vector(rgb)))
@@ -174,7 +184,7 @@ speedTest <- function() {
   set.seed(1)
   d <- c(1000,1500,3)
   rgb.vec <- sample(0:255, prod(d), replace=TRUE)
-  rgb <- array(rgb.vec, dim=d)
+  rgb <- array(rgb.vec, dim=d) / 255
 
   refFunc <- function(rgb) {
     hsv.ref <- rgb2hsv(matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
@@ -185,7 +195,7 @@ speedTest <- function() {
   st <- Sys.time(); cmp <- max(abs(toRGB(toHSV(rgb)) - rgb)); et <- Sys.time();
   print(paste('Speed test: maxerror', cmp, ', time', et - st))
 
-  st.ref <- Sys.time(); cmp.ref <- max(abs(refFunc(rgb) - rgb)); et.ref <- Sys.time();
+  st.ref <- Sys.time(); cmp.ref <- max(abs(refFunc(255*rgb) - 255*rgb)); et.ref <- Sys.time();
   print(paste('Reference speed test: maxerror', cmp.ref, ', time', et.ref - st.ref))
 }
 
@@ -252,7 +262,9 @@ view <- function(img, size=4, title='Image') {
   img.w <- dims[2]
   win.h <- if (img.h <= img.w) size else size * img.h/img.w
   win.w <- if (img.w <= img.h) size else size * img.w/img.h
-  dev.new(width=win.w, height=win.h, title=title)
+  # Replace with a window function call of your own OS:
+  #dev.new(width=win.w, height=win.h, title=title)
+  windows(width=win.w, height=win.h, title=title)
   grid.raster(img, interpolate=FALSE)
 }
 
@@ -606,13 +618,15 @@ blurAmount <- function(img, size=3) {
 
 
 # Transform RGB colors so that image contains pure bright hues.
-toBrightRGB <- function(img.rgb) {
+toBrightRGB <- function(img.rgb, na.color='gray') {
+  na.color.hsv <- rgb2hsv(col2rgb(na.color))  # Pixels with NA hues are filled with this color
   img.hsv <- toHSV(img.rgb)
-  hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
+  hues <- extractHSVChannel(img.hsv, HUE)
   saturations <- matrix(1, nrow=nrow(hues), ncol=ncol(hues))
+  saturations[is.na(hues)] <- na.color.hsv[SATURATION$idx]
   values <- matrix(1, nrow=nrow(hues), ncol=ncol(hues))
-  HSVtoRGB
-  img.rgb.bright <- createImageRGB(reds, greens, blues)
+  values[is.na(hues)] <- na.color.hsv[VALUE$idx]
+  img.rgb.bright <- toRGB(createImageHSV(hues, saturations, values))
   return(img.rgb.bright)
 }
 
@@ -896,7 +910,7 @@ main <- function() {
   # Custom normalized spatial dispersion: dominantdistances / alldistances
   print(paste('Color dispersion(custom.ds):', ddc$custom.ds))
   if (do.view) viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
-  if (do.view) view(toHues(img), title='Pure hues')
+  if (do.view) view(toBrightRGB(img), title='Pure hues')
   print('===  END  ===')
 }
 
