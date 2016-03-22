@@ -56,17 +56,18 @@ from an incorrect color temperature.
 ![Blurriness](http://www.elisanet.fi/esajakatja/valokuvat/pq/penguin-blurriness.png)
 
 ##Why?
-It's tedious to manage a large collection of photographs. An avid photographer may easily end up having dozens of seemingly identical photos. Unfortunately, none of the applications from Adobe, Apple, or others seem to address this issue. It's time to ease the pain of photo management and spend the time taking photos instead.
 
 Imagine that you could give a set of photos to someone, who then orders them and picks the best photos for you. This is possible with modern image analysis and machine learning techniques. I'm talking about assessing the quality of photographs -- automatically.
 
-The question of photo quality is subjective to certain extent. However, most photos are taken by ordinary people, and more general rules apply to photo quality. In this domain, most people would favor photos that have excellent sharpness somewhere, avoid motion blur, lack compression artefacts (think of JPEG), have faces with their eyes open, follow the *golden rule*, etc.
+It's tedious to manage a large collection of photographs. An avid photographer may easily end up having dozens of seemingly identical photos. Unfortunately, none of the applications from Adobe, Apple, or others seem to address this issue. It's time to ease the pain of photo management and spend the time taking photos instead.
 
-In fact many photo features, both technical and aesthetic in nature, can be modeled and measured. The field of measuring image quality is a well-known research topic. Most of the research, however, has concentrated on measuring quality when the true image is known. But in photography, all we have is a single photo. This fairly new field of study is called *no-reference image quality assessment*, or *NR* for short.
+The question of photo quality is subjective to certain extent. However, most photos are taken by ordinary people who follow general rules as it comes to photo quality. In this domain, we want to see excellent sharpness, little motion blur, *golden rule* compositions, no compression artefacts (think of JPEG), faces with their eyes open, etc.
+
+In fact many photo features, both technical and aesthetic in nature, can be modeled and measured. Indeed, the field of measuring image quality is a well-known research topic. Most of the research, however, has concentrated on measuring quality when the true image is known. But in photography, all we have is a single photo. This fairly new field of study is called *no-reference image quality assessment*, or *NR* for short.
 
 ## Future roadmap
 
-The project leans towards the scientific research on no-reference image quality. It combines the scattered results from numerous articles and provides an implementation for the methods that lack one. Together, a number of photographic features can be measures from a photo. To assess the quality of a photo, we use machine learning techniques on photo features to arrive at a fair quality assessment. As training data, we use publicly available photo collections that contain individual photo ratings.
+The project leans towards the scientific research on no-reference image quality. It combines the scattered results from numerous articles and provides an implementation for the methods that lack one. Together, a number of photographic features can be measured from a photo. To assess the quality of a photo, we use machine learning techniques on photo features to arrive at a fair quality assessment. As training data, we use publicly available photo collections that contain individual photo ratings.
 
 1. Find relevant articles and measures for no-reference quality assessment.
 2. Implement the most relevant methods.
