@@ -44,7 +44,12 @@ viewDDC <- function(filename, img.hsv, mu, kappa) {
   num.bins <- 120
   x.max <- 2*pi  # 2*pi radians is 360 degrees
   h.raw <- c(hues)
-  clean.hues <- h.raw[!is.na(h.raw)]
+  mask <- !is.na(h.raw)
+  if (sum(mask) <= 0.01*length(hues)) {
+    print('Skipping DDC hue plot because the image is (almost) greyscale.')
+    return()
+  }
+  clean.hues <- h.raw[mask]
   bin.factor <- x.max / num.bins
   d <- (clean.hues %/% bin.factor)*bin.factor
   cols <- hsv(h=(d%%x.max)/x.max)

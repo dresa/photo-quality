@@ -171,6 +171,10 @@ dispersionDominantColor <- function(img.hsv) {
   nr <- nrow(hues)
   nc <- ncol(hues)
   mask <- !is.na(hues)  # existing hues, excluding white and black
+
+  is.almost.gray <- sum(mask) < 0.01*nr*nc  # only a minority of pixels has a hue (is not grey)
+  if (is.almost.gray) return(list(mu=NA, kappa=NA, pi=NA, ds=NA, custom.ds=NA))
+  
   mu <- atan2(sum(sin(hues[mask])), sum(cos(hues[mask])))%%(2*pi)  # angles between hues
   # Estimate kappa parameter on a von Mises distribution in a circular domain.
   kappa <- A1inv(mean(cos(hues[mask] - mu)))
@@ -192,9 +196,9 @@ dispersionDominantColor <- function(img.hsv) {
   col.idx <- c(px.col[mask][npdc.mask])
   npdc.nr <- length(row.idx)
   npdc.nc <- length(col.idx)
-  
+
   # Approximation for all Euclidean distances, for custom normalization
-  num.samples <- 10000  # just enough to get a hint about the avg distance
+  num.samples <- min(10000, nr*nc/2)  # just enough to get a hint about the avg distance
   smpl <- function(values) sample(values, num.samples, replace=TRUE)
   approx.dist <- mean(sqrt((smpl(1:nr) - smpl(1:nr))^2 + (smpl(1:nc) - smpl(1:nc))^2))
   
@@ -202,11 +206,27 @@ dispersionDominantColor <- function(img.hsv) {
   px.1 <- smpl(1:npdc.nr)
   px.2 <- smpl(1:npdc.nr)
   npdc.approx.dist <- mean(sqrt((row.idx[px.1] - row.idx[px.2])^2 + (col.idx[px.1] - col.idx[px.2])^2))
-  
+
   spatial.dispersion <- npdc.approx.dist
   custom.ds <- min(1, npdc.approx.dist / approx.dist)  # cap to 1 (exceeds by random variation)
   
   return(list(mu=mu, kappa=kappa, pi=pi.measure, ds=spatial.dispersion, custom.ds=custom.ds))
+}
+
+
+
+# A set of basic measures, as described in slideshow names
+# Automatic photo quality assessment --- Taming subjective problems with hand-coded metrics
+
+basicExposureLevel <- function(img) {
+  # Using mean pixel intensity (interpreted via luminance) to determine
+  # whether we have a "correct" exposure; that is, luminance is close to 0.5.
+  # Uses a Beta distribution to set an exposure score (highest value 1.0 at 0.5).
+  SHAPE = 2.0
+  rawScore <- function(x) dbeta(x, SHAPE, SHAPE)
+  m <- mean(luminance(img))  # 0 is black, 1 is white
+  exposure.score <- rawScore(m) / rawScore(0.5)  # normalize by maximum density
+  return(exposure.score)
 }
 
 

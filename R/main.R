@@ -74,6 +74,7 @@ main <- function() {
   print(paste('MDWE horizontal blur width:', mdwe.score[['score']]))  # smaller is better
   print(paste('MDWE Gaussian quality (0--1):', mdwe.score[['gaussian']]))  # greater is better
   print(paste('MDWE JPEG2000 quality (0--1):', mdwe.score[['jpeg2k']]))  # greater is better
+  print(paste('Basic exposure:', basicExposureLevel(img)))
   ddc <- dispersionDominantColor(toHSV(img))
 
   # Dominant direction, spread, and portion of the dominant color.
