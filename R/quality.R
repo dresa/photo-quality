@@ -220,8 +220,10 @@ dispersionDominantColor <- function(img.hsv) {
 
 basicExposureLevel <- function(img) {
   # Using mean pixel intensity (interpreted via luminance) to determine
-  # whether we have a "correct" exposure; that is, luminance is close to 0.5.
-  # Uses a Beta distribution to set an exposure score (highest value 1.0 at 0.5).
+  # whether we have a "correct" exposure. An underexposured image has mean
+  # luminance close to 0.0; that of an overexposured image is closer to 1.0.
+  # Uses a scaled Beta distribution to set an exposure score (highest value
+  # 1.0 at 0.5), so it punishes for underexposure and overexposure.
   SHAPE = 2.0
   rawScore <- function(x) dbeta(x, SHAPE, SHAPE)
   m <- mean(luminance(img))  # 0 is black, 1 is white
@@ -229,4 +231,19 @@ basicExposureLevel <- function(img) {
   return(exposure.score)
 }
 
+basicRmsContrast <- function(img) {
+  # RMS contrast
+  # https://en.wikipedia.org/wiki/Contrast_(vision)
+  # i <- luminance(img)
+  # return(sqrt(sum((i - mean(i))^2) / (nrow(i)*ncol(i))))
+  return(sd(luminance(img)))
+}
+
+basicIntervalContrast <- function(img, interval=0.95) {
+  # Slides
+  tail.prob <- (1 - interval) / 2
+  i <- sort(luminance(img))
+  q <- quantile(i, c(tail.prob, 1 - tail.prob))
+  return(as.numeric(diff(q)))
+}
 

@@ -75,6 +75,8 @@ main <- function() {
   print(paste('MDWE Gaussian quality (0--1):', mdwe.score[['gaussian']]))  # greater is better
   print(paste('MDWE JPEG2000 quality (0--1):', mdwe.score[['jpeg2k']]))  # greater is better
   print(paste('Basic exposure:', basicExposureLevel(img)))
+  print(paste('Basic RMS contrast:', basicRmsContrast(img)))
+  print(paste('Basic interval contrast:', basicIntervalContrast(img)))
   ddc <- dispersionDominantColor(toHSV(img))
 
   # Dominant direction, spread, and portion of the dominant color.
