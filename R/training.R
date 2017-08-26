@@ -46,7 +46,7 @@ measure <- function(filename) {
 }
 
 training <- function(photo.dir, target.path) {
-  photos <- list.files(photo.dir, full.names=TRUE)[1:100]
+  photos <- list.files(photo.dir, full.names=TRUE) #[1:100]
   headers <- c('Photo', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k',
                'Exposure', 'RmsContrast', 'IntervalContrast', 'DdcMean',
                'DdcCompactness', 'DdcDominance', 'DdcSpatial', 'DdcNormSpatial')
