@@ -172,9 +172,9 @@ dispersionDominantColor <- function(img.hsv) {
   nc <- ncol(hues)
   mask <- !is.na(hues)  # existing hues, excluding white and black
 
-  is.almost.gray <- sum(mask) < 0.01*nr*nc  # only a minority of pixels has a hue (is not grey)
-  if (is.almost.gray) return(list(mu=NA, kappa=NA, pi=NA, ds=NA, custom.ds=NA))
-  
+  #is.almost.gray <- sum(mask) < 0.01*nr*nc  # only a minority of pixels has a hue (is not grey)
+  #if (is.almost.gray) return(list(mu=NA, kappa=NA, pi=NA, ds=NA, custom.ds=NA))
+
   mu <- atan2(sum(sin(hues[mask])), sum(cos(hues[mask])))%%(2*pi)  # angles between hues
   # Estimate kappa parameter on a von Mises distribution in a circular domain.
   kappa <- A1inv(mean(cos(hues[mask] - mu)))
@@ -186,6 +186,10 @@ dispersionDominantColor <- function(img.hsv) {
   dist <- pmin(dist.raw, 2*pi - dist.raw)  # distance between hues, mod 2*pi
   npdc.mask <- dist <= 1/kappa  # article has a different interpretation of 1/kappa ??
   npdc <- sum(npdc.mask)  # pixels in a dominant color (within range kappa)
+
+  # If we are too close to a grayscale image, then it's time to give up:
+  if (npdc < 4) return(list(mu=NA, kappa=NA, pi=NA, ds=NA, custom.ds=NA))
+
   pi.measure <- npdc / length(hues[mask])
   px.row <- matrix(1:length(hues) %% nr, nrow=nr)
   px.col <- matrix(1:length(hues) %/% nr, nrow=nr)
