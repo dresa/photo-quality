@@ -18,6 +18,11 @@ readImage <- function(filename) {
   } else if (endsWithAny(refname, c('\\.png'))) {
     img <- readPNG(filename)
   } else stop('Image file must be a .PNG or .JPG file')
+
+  if (length(dim(img)) == 2) {  # only one value per pixel
+    # Image contains only greyscale values; repeat values to create RGB channels.
+    img <- array(img, dim=c(dim(img), 3))
+  }
   dimnames(img) <- list(NULL, NULL, c('Red', 'Green', 'Blue'))
   return(img)
 }
