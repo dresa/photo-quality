@@ -1,4 +1,6 @@
 *.class
+.classpath
+.project
 
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
@@ -12,3 +14,12 @@
 hs_err_pid*
 /bin/
 .Rproj.user
+R.Rproj
+.Rhistory
+# large dataset of photos
+training-data\originals
+
+# image files
+*.pdf
+*.png
+*.jpg
