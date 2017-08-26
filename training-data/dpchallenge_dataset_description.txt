@@ -1,0 +1,30 @@
+DPChallenge.com Dataset - March'09 Release
+------------------------------------
+Ritendra Datta (datta [at] cse [dot] psu [dot] edu)
+---------------------------------------------------
+
+
+Description of columns of dpchallenge_dataset.txt
+----------------------------------------------
+
+Column 1: Index
+Column 2: Photo-ID 
+Column 3: Number of aesthetics ratings received
+Column 4: Mean of ratings
+Columns 5-14: Distribution (counts) of quality ratings in 1-10 scale, 5 being for 1, and 14 being for 10.
+
+A very small fraction of photos have 0 ratings - in those cases, the mean and the distribution columns have dummy value of -1.
+   
+How to obtain the original images?
+----------------------------------
+
+The photo ID is unique, but the exact URL of the files may change on the DPChallenge server. Probably the best way to obtain the image URL is to download/wget the html page hosting the image, and scrape that html file for the image URL (there is usually a pattern that can be easily detected). The URLs for the html pages are currently of the following form:
+
+    http://www.dpchallenge.com/image.php?IMAGE_ID=<Photo-ID>
+e.g.,
+    http://www.dpchallenge.com/image.php?IMAGE_ID=10007
+
+Copyright Issues
+----------------
+
+Please respect copyright that applies to you and to the data sources. Please do not re-distribute the image data. This is the same reason we do not distribute the original images.
