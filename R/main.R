@@ -16,6 +16,7 @@ source('imageio.R')       # read photo from a file
 source('derivedimage.R')  # image conversions
 source('viewer.R')        # viewing images on-screen
 source('quality.R')       # computing quality measurements
+source('qualitydatta.R')  # quality measurements by Datta et al
 
 
 ##########
@@ -49,6 +50,7 @@ main <- function() {
   #filename <- '../examples/temple_set/temple-k-gaussianblur.png'
   
   img <- readImage(filename)
+  img.hsv <- toHSV(img)
   print(paste('Processing image:', filename))
   for (channel in RGB) {
     if (do.view) view(extractRGBChannel(img,channel), title=paste(channel$name, 'color channel'))
@@ -77,7 +79,9 @@ main <- function() {
   print(paste('Basic exposure:', basicExposureLevel(img)))
   print(paste('Basic RMS contrast:', basicRmsContrast(img)))
   print(paste('Basic interval contrast:', basicIntervalContrast(img)))
-  ddc <- dispersionDominantColor(toHSV(img))
+  print(paste('Average Intensity (Datta 1):', avgIntensity(img.hsv)))
+  print(paste('Colorfulness (Datta 2):', colorfulness(img)))
+  ddc <- dispersionDominantColor(img.hsv)
 
   # Dominant direction, spread, and portion of the dominant color.
   # Dominant hue as an angle
