@@ -14,6 +14,11 @@ SATURATION <- list(idx=2, name='SATURATION')
 VALUE <- list(idx=3, name='VALUE')
 HSV <- list(HUE, SATURATION, VALUE)
 
+CIE_X <- list(idx=1, name='CIE_X')  # "red--green"
+CIE_Y <- list(idx=2, name='CIE_Y')  # "luminosity"
+CIE_Z <- list(idx=3, name='CIE_Z')  # "blue--yellow"
+CIE_XYZ <- list(CIE_X, CIE_Y, CIE_Z)
+
 # Image construction from separate channels
 createImageRGB <- function(reds, greens, blues) {
   if (!all(dim(reds) == dim(blues)) | !all(dim(blues) == dim(greens))) {
@@ -44,3 +49,5 @@ createImageHSV <- function(hues, saturations, values) {
 extractRGBChannel <- function(img.rgb, col.channel) img.rgb[ , , col.channel$idx]
 
 extractHSVChannel <- function(img.hsv, hsv.channel) img.hsv[ , , hsv.channel$idx]
+
+extractXYZChannel <- function(img.xyz, xyz.channel) img.xyz[ , , xyz.channel$idx]

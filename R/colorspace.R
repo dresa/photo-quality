@@ -83,6 +83,32 @@ toRGB <- function(img.hsv, radians=FALSE, na.hue=0) {
   return(createImageRGB(m + red.add, m + green.add, m + blue.add))
 }
 
+# Convert an RGB image into the CIE XYZ color space
+# Reference: http://ninedegreesbelow.com/photography/xyz-rgb.html
+# In ICC, the RGB color white (1,1,1) has the XYZ coordinates (0.9642, 1.0000, 0.8249).
+# We are using the D65 XYZ coordinates, where RGB(1,1,1) translates to XYZ(0.9505 1.0000 1.0891).
+toXYZ <- function(img.rgb) {
+  dim.names <- list(NULL, NULL, c('X', 'Y', 'Z'))
+  M <- matrix(c(0.4124564, 0.3575761, 0.1804375,
+                0.2126729, 0.7151522, 0.0721750,
+                0.0193339, 0.1191920, 0.9503041), 3, byrow=TRUE)
+  img.xyz <- array(matrix(c(img.rgb), ncol=3) %*% t(M), dim=dim(img.rgb), dimnames=dim.names)
+  return(img.xyz)
+  # Alternative, almost as fast method:
+  #  red <- extractRGBChannel(img.rgb, RED)
+  #  green <- extractRGBChannel(img.rgb, GREEN)
+  #  blue <- extractRGBChannel(img.rgb, BLUE)
+  #  X <- 0.412453*red + 0.35758 *green + 0.180423*blue
+  #  Y <- 0.212671*red + 0.71516 *green + 0.072169*blue
+  #  Z <- 0.019334*red + 0.119193*green + 0.950227*blue
+  #  img.xyz <- array(c(X, Y, Z), dim=dim(img.rgb), dimnames=dim.names)
+  #
+  # Inversion to be used in XYZ-->RGB conversions.
+  # Minv <- matrix(c(3.2404542, -1.5371385, -0.4985314,
+  #                  -0.9692660, 1.8760108, 0.0415560,
+  #                  0.0556434, -0.2040259, 1.0572252), 3, byrow=TRUE)
+}
+
 
 test <- function() {
   set.seed(1)
