@@ -20,32 +20,80 @@ source('imageio.R')
 avgIntensity <- function(img.hsv) { mean(extractHSVChannel(img.hsv, VALUE)) }
 
 # Datta 2: Colorfulness
+# Not tested or verified yet.
+# Lower EMD distances mean that colors are evenly spread, which means higher colorfulness.
+# For example EMD for Black & White images may be around 82,
+# a narrow set of pure colors may get EMD like 48,
+# whereas an image where a wide variety colors and tones are represented has distances like.
+# Not that scaling of distance is based on LUV space dimensions.
 ##########
-centers <- 'FILL!' # LUV values of bucket centers, precomputed
-
-# Convert RGB image to an LUV image. RGB values are assumed to be between 0 and 1.
-toLUV <- function(img.rgb) {
-}
-# Function:
 colorfulness <- function(img) {
-  n <- 4  # number of buckets per channel
+  n <- 4  # number of buckets per channel, in total n^3 buckets
+  size <- prod(dim(img)[1:2])
   cuts <- cut(img, breaks = seq(0, 1, length.out=n+1), labels = 0:(n-1), include.lowest=TRUE)
   b <- array(as.integer(cuts), dim=dim(img)) - 1
-  buckets <- n * (n * b[,,1] + b[,,2]) + b[,,3]
+  red <- 1
+  green <- 2
+  blue <- 3
+  buckets <- n * (n * b[,,blue] + b[,,green]) + b[,,red] + 1  # bucket ID [1;64] for each _pixel_
+  n.buckets <- n^3
+  # Example of bucket IDs: ID's [0,n-1] have Blue and Green at lowest level, while Red varies from low to high.
   D2 <- table(buckets)
+  # Bucket centers (RGB values)
+  midpoints <- seq(1/(2*n), 1, 1/n)  # average RGB channel values for buckets
+  domain <- expand.grid(midpoints, midpoints, midpoints)
+  channels <- c('Red', 'Green', 'Blue')
+  colnames(domain) <- channels
+  #print(domain)
+  bucket.rgb <- array(
+    c(sapply(channels, function(x) unlist(domain[x]))),
+    dim=c(n.buckets, 1, 3),
+    dimnames=list(NULL, NULL, channels)
+  )
+  #print(bucket.rgb)
+  bucket.luv <- toLUV(bucket.rgb)  # there is no black color (or NAs) since we use bucket midpoints
+  #print(bucket.luv)
+  
+  # Create an EMD problem instance (Earth Mover's Distance): location and weights
+  locations <- matrix(bucket.luv, ncol=3)
+  #print(locations)
+  #print(D2)
+  from.w <- sapply(1:n^3, function(x) D2[toString(x)]) / size
+  from.w[is.na(from.w)] <- 0
+  names(from.w) <- 1:n.buckets
+  #print(from.w)
+  to.w <- replicate(n.buckets, 1 / n.buckets)
+  names(to.w) <- 1:n.buckets
+  #print(to.w)
 
+  # Solve EMD instance
+  #print(dim(locations))
+  #print(length(from.w))
+  #print(length(to.w))
+  #print(locations)
+  #print(from.w)
+  #print(to.w)
+  
+  e <- emdw(locations, from.w,  locations, to.w) #, flows=TRUE)
+  print(paste('EMD distance (not tested):', e))
+  
+  
+  #rgb.centers=as.list(sapply(, function(x) ))
+  #names(rgb.centers) <- sapply(0:(n.buckets-1), toString)
+  
   # Convert to LUV color space
   # http://framewave.sourceforge.net/Manual/fw_function_020_0060_00330.html
   # http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
   # ?convertColor
   # http://pages.cs.wisc.edu/~dyer/cs766/hw/hw2/code/rgb2luv.m
   # https://www.easyrgb.com/en/math.php
+  # http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Luv.html
   # any good?
-  toXYZ(img)
 
+  
   # Earth mover's distance
   # http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/RUBNER/emd.htm
-
+  #
   # Example:
   # Weight:   20 10  0  -->  10  2 18   
   # Location:  1  2  3        1  2  3   
@@ -102,22 +150,26 @@ colorfulness <- function(img) {
 
 
 
-#img <- readImage('../examples/small_grid.png')
-#print(colorfulness(img))
+img <- readImage('../examples/small_grid.png')     # 48? (EMD colorfulness distance), not verified
+#img <- readImage('../examples/sharp_or_blur.png')  # 83?
+#img <- readImage('../examples/penguin.jpg')        # 61?
+#img <- readImage('../examples/no_shift.png')       # 57?
+#img <- readImage('../examples/many_colors.png')    # 18?
+#img <- readImage('../examples/niemi.png')          # 49?
+#img <- readImage('../examples/almost_black.png')   # 83?
+#img <- readImage('../examples/dark_city.png')      # 65?
 
+#source('viewer.R')
+#view(img)
 #print(toXYZ(img))
-#print(toXYZ(img, 3) - toXYZ(img, 4))
-#print(toXYZ(img, 1) - toXYZ(img, 4))
 
-#stop()
+print(colorfulness(img))
+
 
 #img <- readImage('../examples/K5_10994.JPG')
 #n <- 10
-#for (m in 1:4) {
-#  start.time <- Sys.time()
-#  replicate(n, dim(toXYZ(img, m)))
-#  end.time <- Sys.time()
-#  time.m <- (end.time - start.time) / n
-#  print(paste('Method', m, 'time:', time.m))
-#}
+#start.time <- Sys.time()
+#replicate(n, dim(toXYZ(img)))
+#end.time <- Sys.time()
+#print((end.time - start.time) / n)
 
