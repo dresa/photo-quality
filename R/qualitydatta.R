@@ -46,9 +46,13 @@ allocateColorsToBuckets <- function(img, n) {
   
   # Debugging: show distribution of color-buckets:
   if (DEBUG_BUCKETS) {
-    dn <- function(s) paste0(s, c('--', '-', '+', '++'))
-    print(array(bucket.freqs, dim=c(4,4,4), dimnames=list(dn('r'), dn('g'), dn('b'))))
-    print(array(1:4^3, dim=c(4,4,4)))
+    signs <- function(ch, x) paste(rep(ch, x), collapse='')
+    minus.signs <- sapply(floor(n/2):1, function(x) signs('-', x))
+    neutral.signs <- rep('', if (n%%2) 1 else 0)
+    plus.signs <- sapply(1:floor(n/2), function(x) signs('+', x))
+    dn <- function(s) paste0(s, c(minus.signs, neutral.signs, plus.signs))
+    print(array(bucket.freqs, dim=c(n,n,n), dimnames=list(dn('r'), dn('g'), dn('b'))))
+    print(array(1:n^3, dim=c(n,n,n)))
     p <- bucket.freqs/sum(bucket.freqs)
     print(paste('Bucket entropy:', -sum(p*log2(p), na.rm=TRUE)))
   }
@@ -76,24 +80,39 @@ bucketColorsRGB <- function(n) {
   return(bucket.rgb)
 }
 
+BUCKET_LUV_CACHE <- list()
+
 # Generate the LUV colors of bucket centerpoints (fixed for every image).
 bucketColorsLUV <- function(n) {
-  bucket.luv <- toLUV(bucketColorsRGB(n))
+  if (is.null(unlist(BUCKET_LUV_CACHE[n]))) {
+    BUCKET_LUV_CACHE[[n]] <<- toLUV(bucketColorsRGB(n))
+  }
+  return(BUCKET_LUV_CACHE[[n]])
 }
 
 # Create an instance of a Earth Mover's Distance problem (EMD),
 # where we model color coordinates in LUV space as locations,
 # the frequency of bucket colors with the image as source distribution,
 # and uniform distribution of bucket colors as target distribution (signature).
-createEMDProblem <- function(bucket.luv, bucket.freqs, n) {
+createEMDProblem <- function(bucket.luv, bucket.freqs, n, target='all') {
   n.buckets <- n^3
   locations <- matrix(bucket.luv, ncol=3, dimnames=list(NULL, dimnames(bucket.luv)[[3]]))
   # Weights, distributions, and signatures all mean the same thing.
   from.w <- bucket.freqs / sum(bucket.freqs)  # SOURCE distribution
   from.w[is.na(from.w)] <- 0    # missing buckets have zero frequency
   names(from.w) <- 1:n.buckets  # just for debugging
-  to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed mass, TARGET distribution
-  names(to.w) <- 1:n.buckets
+  to.w <- switch(tolower(target),
+    uniform={setNames(replicate(n.buckets, 1/n.buckets), 1:n.buckets)},
+    grey={
+      g <- integer(n.buckets)  # zeros
+      # use grey buckets; with n=4, buckets are 1, 22, 43, 64, from black to white
+      GREY_BUCKETS <- seq(1, n.buckets, (n.buckets-1)/(n-1))  
+      g[GREY_BUCKETS] <- 1/length(GREY_BUCKETS)
+      setNames(g, 1:n.buckets)}
+  )
+  #if (lower(target) == 'all') to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed target
+  #else if (lower(target) == 'grey') to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed target
+  names(to.w) <- 
   return(list(locations=locations, from.weights=from.w, to.weights=to.w))
 }
 
@@ -119,15 +138,15 @@ replicateDistance <- function(emd.solution, locations, n) {
 }
 
 # Datta 2 measure: colorfulness for an RGB image, as measured in LUV space
-colorfulness <- function(img) {
+# n is the number of buckets per channel, in total n^3 buckets
+colorfulness <- function(img, mode='uniform', n=4) {
   # Preliminary constants
-  n <- 4  # number of buckets per channel, in total n^3 buckets
   EMD_DEBUG <- FALSE
 
   # Label image pixels with a number of color-buckets and create an EMD problem instance:
   bucket.freqs <- allocateColorsToBuckets(img, n)
   bucket.luv <- bucketColorsLUV(n)
-  p <- createEMDProblem(bucket.luv, bucket.freqs, n)
+  p <- createEMDProblem(bucket.luv, bucket.freqs, n, mode)
   # Solve EMD instance. We can choose 'from' and 'to' either way (Euclidean is symmetric).
   e <- emdw(p$locations, p$from.weights, p$locations, p$to.weights, dist='euclidean', flows=TRUE)
   
@@ -143,12 +162,48 @@ colorfulness <- function(img) {
 }
 
 
+# Datta 3: Average pixel saturation
+##########
+avgSaturation <- function(img.hsv) { mean(extractHSVChannel(img.hsv, SATURATION)) }
 
+
+# Datta 4: Average pixel hue (circular)
+##########
+avgHue <- function(img.hsv) { mean(extractHSVChannel(img.hsv, HUE), na.rm=TRUE) }
+
+
+# Datta 5: Average pixel hue (circular) in the middle part of the image [one-third,two-thirds]
+##########
+avgCentral <- function(img.hsv.channel) {
+  ch <- img.hsv.channel
+  mid.cols <- seq(floor(ncol(ch)/3), ceiling(2*ncol(ch)/3))
+  mid.rows <- seq(floor(nrow(ch)/3), ceiling(2*nrow(ch)/3))
+  return(mean(ch[mid.rows, mid.cols], na.rm=TRUE))
+}
+avgCentralHue <- function(img.hsv) { return(avgCentral(extractHSVChannel(img.hsv, HUE))) }
+
+# Datta 6: Average pixel saturation in the middle part of the image
+##########
+avgCentralSaturation <- function(img.hsv) { return(avgCentral(extractHSVChannel(img.hsv, SATURATION))) }
+
+# Datta 7: Average pixel intensity in the middle part of the image
+##########
+avgCentralIntensity <- function(img.hsv) { return(avgCentral(extractHSVChannel(img.hsv, VALUE))) }
+
+
+# Datta 8 (top-20 familiarity) skipped due to lack of data!
+##########
+
+# Datta 9 (top-100 familiarity) skipped due to lack of data!
+##########
+
+
+# Another idea for colorfulness: instead of having D1 uniform
+# on 64 buckets, why not make D1 uniform on 4 greyscale buckets?
 
 
 
 # References, links and tests for LUV and EMD.
-##############
 
 #rgb.centers=as.list(sapply(, function(x) ))
 #names(rgb.centers) <- sapply(0:(n.buckets-1), toString)
@@ -304,7 +359,7 @@ colorfulness <- function(img) {
 
 
 # Mono-colored images have maximum distances from/to uniform distribution.
-# Ranging from 75.0 (bucket 43: light-grey) up to 153.7 (bucket 4: bright red).
+# Ranging from 75.0 (bucket 43/64: light-grey) up to 153.7 (bucket 4/64: bright red).
 
 # Example images from the article do not behave like the authors claim:
 #img <- readImage('../examples/datta-colorfulness-high-1.png')  # 70  entropy 2.56 b
@@ -320,7 +375,9 @@ colorfulness <- function(img) {
 #      memory.profiling = FALSE, gc.profiling = FALSE, 
 #      line.profiling=TRUE, numfiles = 100L, bufsize = 10000L)
 
-#print(colorfulness(img))
+#print(colorfulness(img, 'uniform'))
+#print(colorfulness(img, 'uniform', n=6))
+#print(colorfulness(img, 'grey', n=6))
 
 
 #img <- readImage('../examples/K5_10994.JPG')
