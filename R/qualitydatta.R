@@ -35,10 +35,12 @@ allocateColorsToBuckets <- function(img, n) {
   red <- 1
   green <- 2
   blue <- 3
-  buckets <- n * (n * b[,,blue] + b[,,green]) + b[,,red] + 1  # bucket ID [1;64] for each _pixel_
+  # bucket ID [1;64] for each _pixel_
   # Example of bucket IDs: ID's [0,n-1] have Blue and Green at lowest level, while Red varies from low to high.
-  bucket.freqs <- table(buckets)  # variable D2 in original article
-  return(bucket.freqs)
+  # Note: 'table' function is slow because of implicit int->str conversions and comparisons.
+  genBucketCodes <- function() n * (n * b[,,blue] + b[,,green]) + b[,,red] + 1
+  bucket.freqs <- tabulate(genBucketCodes(), nbins=n^3)
+  return(bucket.freqs)  # variable D2 in original article
 }
 
 bucketColorsRGB <- function(n) {
@@ -67,7 +69,8 @@ createEMDProblem <- function(bucket.luv, bucket.freqs, n) {
   # We can choose 'from' and 'to' either way, since Euclidean distance is symmetric.
   n.buckets <- n^3
   locations <- matrix(bucket.luv, ncol=3)
-  from.w <- sapply(1:n.buckets, function(x) bucket.freqs[toString(x)]) / sum(bucket.freqs)  # SOURCE distribution
+  #from.w <- sapply(1:n.buckets, function(x) bucket.freqs[toString(x)]) / sum(bucket.freqs)  # SOURCE distribution
+  from.w <- sapply(1:n.buckets, function(x) bucket.freqs[x]) / sum(bucket.freqs)  # SOURCE distribution
   from.w[is.na(from.w)] <- 0    # missing buckets have zero frequency
   names(from.w) <- 1:n.buckets  # just for debugging
   to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed mass, TARGET distribution
