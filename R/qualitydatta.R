@@ -30,6 +30,7 @@ avgIntensity <- function(img.hsv) { mean(extractHSVChannel(img.hsv, VALUE)) }
 
 # Map the colors in an RGB image into a small number (n^3) of buckets.
 allocateColorsToBuckets <- function(img, n) {
+  DEBUG_BUCKETS <- FALSE
   # Breaks that separate RGB color-value intervals 1..n
   breaks <- seq(0, 1, length.out=n+1)
   # Map all R, G, and B channels values [0;1] into inverval IDs {0,1,..,n}
@@ -40,8 +41,18 @@ allocateColorsToBuckets <- function(img, n) {
   blue <- 3
   genBucketCodes <- function() n * (n * b[,,blue] + b[,,green]) + b[,,red] + 1
   # Example: bucket ID's [0;n-1] have low Blue and Green, while Red varies from low to high.
-  # Frequency of bucket-colors withinh the RGB image:
+  # Frequency of bucket-colors within the RGB image:
   bucket.freqs <- tabulate(genBucketCodes(), nbins=n^3)
+  
+  # Debugging: show distribution of color-buckets:
+  if (DEBUG_BUCKETS) {
+    dn <- function(s) paste0(s, c('--', '-', '+', '++'))
+    print(array(bucket.freqs, dim=c(4,4,4), dimnames=list(dn('r'), dn('g'), dn('b'))))
+    print(array(1:4^3, dim=c(4,4,4)))
+    p <- bucket.freqs/sum(bucket.freqs)
+    print(paste('Bucket entropy:', -sum(p*log2(p), na.rm=TRUE)))
+  }
+
   return(bucket.freqs)  # variable D2 in original article
   # Note that 'findInterval' is 8x faster than 'cut' in this case. Also, 'tabulate' is 8x faster
   # than 'table' function (because of implicit int->str).
@@ -61,6 +72,7 @@ bucketColorsRGB <- function(n) {
     dim=c(n.buckets, 1, 3),
     dimnames=list(NULL, NULL, channels)
   )
+  #print(bucket.rgb)  # debug
   return(bucket.rgb)
 }
 
@@ -75,7 +87,7 @@ bucketColorsLUV <- function(n) {
 # and uniform distribution of bucket colors as target distribution (signature).
 createEMDProblem <- function(bucket.luv, bucket.freqs, n) {
   n.buckets <- n^3
-  locations <- matrix(bucket.luv, ncol=3)
+  locations <- matrix(bucket.luv, ncol=3, dimnames=list(NULL, dimnames(bucket.luv)[[3]]))
   # Weights, distributions, and signatures all mean the same thing.
   from.w <- bucket.freqs / sum(bucket.freqs)  # SOURCE distribution
   from.w[is.na(from.w)] <- 0    # missing buckets have zero frequency
@@ -95,6 +107,9 @@ replicateDistance <- function(emd.solution, locations, n) {
   amounts <- flows[[3]]
   euclidean <- function(x) sqrt(sum((locations[x[1], ] - locations[x[2], ])^2))
   distances <- matrix(apply(expand.grid(1:n.buckets, 1:n.buckets), 1, euclidean), ncol=n.buckets)
+  d <- setNames(apply(distances, 1, sum)/n.buckets, 1:n.buckets)
+  print(paste('Farthest bucket', which.max(d), 'has uniform distance', max(d)))
+  print(paste('Closest bucket', which.min(d), 'has uniform distance', min(d)))
   f <- function(from, to, amount) distances[from, to] * amount
   costs <- mapply(f, froms, tos, amounts)
   print(paste('Flow amount', amounts, 'from', froms, 'to', tos, 'with cost', costs), collapse='\n')
@@ -113,12 +128,13 @@ colorfulness <- function(img) {
   bucket.freqs <- allocateColorsToBuckets(img, n)
   bucket.luv <- bucketColorsLUV(n)
   p <- createEMDProblem(bucket.luv, bucket.freqs, n)
-
   # Solve EMD instance. We can choose 'from' and 'to' either way (Euclidean is symmetric).
   e <- emdw(p$locations, p$from.weights, p$locations, p$to.weights, dist='euclidean', flows=TRUE)
   
   # Debugging: given the flows, replicate the EMD distance?
   if (EMD_DEBUG) {
+    print(bucket.luv)
+    print(p)
     rcost <- replicateDistance(e, p$locations, n)
     print(paste('DEBUG: Normalized EMD cost (replicated):', rcost))
   }
@@ -268,18 +284,33 @@ colorfulness <- function(img) {
 
 
 
-# Unnecessary code used for testing, viewing and profiling:
+# Unnecessary, but useful, code used for testing, viewing and profiling:
+####
 
-#img <- readImage('../examples/small_grid.png')        # 48 (EMD colorfulness distance)
-#img <- readImage('../examples/sharp_or_blur.png')     # 83
-#img <- readImage('../examples/penguin.jpg')           # 61
-#img <- readImage('../examples/no_shift.png')          # 57
+# Test image                                           EMD colorfulness distance and bucket entropy (max 6)
+#img <- readImage('../examples/uniform-buckets.png')   #  0  entropy 6 b (minimum,maximum)
 #img <- readImage('../examples/many_colors.png')       # 18
-#img <- readImage('../examples/niemi.png')             # 49
-#img <- readImage('../examples/almost_black.png')      # 83
-#img <- readImage('../examples/dark_city.png')         # 65
-#img <- readImage('../examples/colorfulness-test.png') # 64
+#img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
+#img <- readImage('../examples/niemi.png')             # 49  entropy 3.67 b
+#img <- readImage('../examples/no_shift.png')          # 57
 #img <- readImage('../examples/K5_10994.JPG')          # 58
+#img <- readImage('../examples/penguin.jpg')           # 61
+#img <- readImage('../examples/colorfulness-test.png') # 64
+#img <- readImage('../examples/dark_city.png')         # 65
+#img <- readImage('../examples/almost_black.png')      # 83
+#img <- readImage('../examples/sharp_or_blur.png')     # 83
+#img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
+#img <- readImage('../examples/pure-red.png')           # 153.7  entropy 0 b (maximum,minimum)
+
+
+# Mono-colored images have maximum distances from/to uniform distribution.
+# Ranging from 75.0 (bucket 43: light-grey) up to 153.7 (bucket 4: bright red).
+
+# Example images from the article do not behave like the authors claim:
+#img <- readImage('../examples/datta-colorfulness-high-1.png')  # 70  entropy 2.56 b
+#img <- readImage('../examples/datta-colorfulness-high-2.png')  # 63  entropy 2.50 b
+#img <- readImage('../examples/datta-colorfulness-low-1.png')   # 71  entropy 2.08 b
+#img <- readImage('../examples/datta-colorfulness-low-2.png')   # 57  entropy 2.25 b
 
 #source('viewer.R')
 #view(img)
