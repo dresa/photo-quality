@@ -27,14 +27,8 @@ avgIntensity <- function(img.hsv) { mean(extractHSVChannel(img.hsv, VALUE)) }
 # whereas an image where a wide variety colors and tones are represented has distances like.
 # Not that scaling of distance is based on LUV space dimensions.
 ##########
-colorfulness <- function(img) {
-  # Preliminary constants
-  n <- 4  # number of buckets per channel, in total n^3 buckets
-  n.buckets <- n^3
-  size <- prod(dim(img)[1:2])
-  channels <- c('Red', 'Green', 'Blue')
-  EMD_DEBUG <- FALSE
-  
+
+allocateColorsToBuckets <- function(img, n) {
   # Create bucket-cuts in RGB space and count their frequencies
   cuts <- cut(img, breaks = seq(0, 1, length.out=n+1), labels = 0:(n-1), include.lowest=TRUE)
   b <- array(as.integer(cuts), dim=dim(img)) - 1
@@ -44,48 +38,83 @@ colorfulness <- function(img) {
   buckets <- n * (n * b[,,blue] + b[,,green]) + b[,,red] + 1  # bucket ID [1;64] for each _pixel_
   # Example of bucket IDs: ID's [0,n-1] have Blue and Green at lowest level, while Red varies from low to high.
   bucket.freqs <- table(buckets)  # variable D2 in original article
+  return(bucket.freqs)
+}
 
+bucketColorsRGB <- function(n) {
   # Bucket center colors: central RGB values converted into LUV values
   # There is no black color (or NAs) since we use bucket midpoints, so no problem with LUV.
+  n.buckets <- n^3
   midpoints <- seq(1/(2*n), 1, 1/n)  # average RGB channel values for buckets
   domain <- expand.grid(midpoints, midpoints, midpoints)
+  channels <- c('Red', 'Green', 'Blue')
   colnames(domain) <- channels
   bucket.rgb <- array(
     c(sapply(channels, function(x) unlist(domain[x]))),
     dim=c(n.buckets, 1, 3),
     dimnames=list(NULL, NULL, channels)
   )
-  bucket.luv <- toLUV(bucket.rgb)
+  return(bucket.rgb)
+}
 
+bucketColorsLUV <- function(n) {
+  bucket.luv <- toLUV(bucketColorsRGB(n))
+}
+
+createEMDProblem <- function(bucket.luv, bucket.freqs, n) {
   # Create an EMD problem instance (Earth Mover's Distance): location and weights
   # Weights refer to distribution signatures.
   # We can choose 'from' and 'to' either way, since Euclidean distance is symmetric.
+  n.buckets <- n^3
   locations <- matrix(bucket.luv, ncol=3)
-  from.w <- sapply(1:n^3, function(x) bucket.freqs[toString(x)]) / size  # SOURCE distribution
+  from.w <- sapply(1:n.buckets, function(x) bucket.freqs[toString(x)]) / sum(bucket.freqs)  # SOURCE distribution
   from.w[is.na(from.w)] <- 0    # missing buckets have zero frequency
   names(from.w) <- 1:n.buckets  # just for debugging
   to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed mass, TARGET distribution
   names(to.w) <- 1:n.buckets
+  return(list(locations=locations, from.weights=from.w, to.weights=to.w))
+}
+
+replicateDistance <- function(emd.solution, locations, n) {
+  n.buckets <- n^3
+  flows <- attributes(emd.solution)[['flows']]
+  froms <- flows[[1]] + 1  # from 0..(n^3-1) domain to 1:n^3
+  tos <- flows[[2]] + 1
+  amounts <- flows[[3]]
+  euclidean <- function(x) sqrt(sum((locations[x[1], ] - locations[x[2], ])^2))
+  distances <- matrix(apply(expand.grid(1:n.buckets, 1:n.buckets), 1, euclidean), ncol=n.buckets)
+  f <- function(from, to, amount) distances[from, to] * amount
+  costs <- mapply(f, froms, tos, amounts)
+  print(paste('Flow amount', amounts, 'from', froms, 'to', tos, 'with cost', costs), collapse='\n')
+  total.cost <- sum(costs)
+  normalized.cost <- total.cost / sum(amounts)
+  return(normalized.cost)
+}
+
+colorfulness <- function(img) {
+  # Preliminary constants
+  n <- 4  # number of buckets per channel, in total n^3 buckets
+  EMD_DEBUG <- FALSE
+  
+  bucket.freqs <- allocateColorsToBuckets(img, n)
+  bucket.luv <- bucketColorsLUV(n)
+  emd.par <- createEMDProblem(bucket.luv, bucket.freqs, n)
 
   # Solve EMD instance
-  e <- emdw(locations, from.w, locations, to.w, dist='euclidean', flows=TRUE)
+  e <- emdw(
+    emd.par$locations,
+    emd.par$from.weights,
+    emd.par$locations,
+    emd.par$to.weights,
+    dist='euclidean',
+    flows=TRUE)
   
   # Debugging: given the flows, replicate the EMD distance
   if (EMD_DEBUG) {
-    flows <- attributes(e)[['flows']]
-    froms <- flows[[1]] + 1  # from 0..(n^3-1) domain to 1:n^3
-    tos <- flows[[2]] + 1
-    amounts <- flows[[3]]
-    euclidean <- function(x) sqrt(sum((locations[x[1], ] - locations[x[2], ])^2))
-    distances <- matrix(apply(expand.grid(1:n.buckets, 1:n.buckets), 1, euclidean), ncol=n.buckets)
-    f <- function(from, to, amount) distances[from, to] * amount
-    costs <- mapply(f, froms, tos, amounts)
-    print(paste('Flow amount', amounts, 'from', froms, 'to', tos, 'with cost', costs), collapse='\n')
-    total.cost <- sum(costs)
-    normalized.cost <- total.cost / sum(amounts)
-    print(paste('DEBUG: Normalized EMD cost (replicated):', normalized.cost))
+    rcost <- replicateDistance(e, emd.par$locations, n)
+    print(paste('DEBUG: Normalized EMD cost (replicated):', rcost))
   }
-  
+
   return(as.numeric(e))  # drop flow information
   
   
@@ -237,11 +266,16 @@ colorfulness <- function(img) {
 #img <- readImage('../examples/niemi.png')             # 49
 #img <- readImage('../examples/almost_black.png')      # 83
 #img <- readImage('../examples/dark_city.png')         # 65
-img <- readImage('../examples/colorfulness-test.png')  # 64
+#img <- readImage('../examples/colorfulness-test.png')  # 64
+img <- readImage('../examples/K5_10994.JPG')          # 58
 
 #source('viewer.R')
 #view(img)
 #print(toXYZ(img))
+
+Rprof(filename="Rprof.out", append = FALSE, interval = 0.01,
+      memory.profiling = FALSE, gc.profiling = FALSE, 
+      line.profiling=TRUE, numfiles = 100L, bufsize = 10000L)
 
 print(colorfulness(img))
 
