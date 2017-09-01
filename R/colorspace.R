@@ -83,6 +83,104 @@ toRGB <- function(img.hsv, radians=FALSE, na.hue=0) {
   return(createImageRGB(m + red.add, m + green.add, m + blue.add))
 }
 
+# Convert an RGB image into the "CIE XYZ" color space
+# Reference: http://ninedegreesbelow.com/photography/xyz-rgb.html
+# http://dougkerr.net/Pumpkin/articles/CIE_XYZ.pdf
+# https://en.wikipedia.org/wiki/SRGB
+# Checked with http://colormine.org/color-converter ?
+# In ICC, the RGB color white (1,1,1) has the XYZ coordinates (0.9642, 1.0000, 0.8249).
+# We are using the D65 XYZ coordinates, where RGB(1,1,1) translates to XYZ(0.9505 1.0000 1.0891).
+# For comparison, values for D50:
+#                    Red = RGB (1,0,0)      Green = RGB (0,1,0)      Blue = RGB (0,0,1)
+#                    X       Y        Z      X        Y      Z       X        Y       Z
+#   sRGB (D65)    0.4358  0.2224   0.0139  0.3853  0.7170  0.0971  0.1430  0.0606  0.7139	
+#   CIE-RGB (E)   0.4685  0.1699  -0.0007  0.3274  0.8242  0.0131  0.1683  0.0059  0.8125
+toXYZ <- function(img.rgb, make.linear=TRUE) {
+  adjustLinear <- function(x) {
+    if (!make.linear) return(x)
+    K0 <- 0.04045  # threshold; notation coming from Wikipedia definition
+    phi <- 12.92
+    a <- 0.055
+    gamma <- 2.4
+    lin <- ((x + a) / (1 + a))^gamma
+    lin[x<=K0] <- x[x<=K0]/phi  # correction for small RGB values
+    return(lin)
+  }
+  M <- matrix(c(0.4124564, 0.3575761, 0.1804375,
+                0.2126729, 0.7151522, 0.0721750,
+                0.0193339, 0.1191920, 0.9503041), 3, byrow=TRUE)
+  dim.names <- list(NULL, NULL, c('X', 'Y', 'Z'))
+  img.xyz <- array(matrix(adjustLinear(img.rgb), ncol=3) %*% t(M), dim=dim(img.rgb), dimnames=dim.names)
+  return(img.xyz)
+  # Alternative, almost as fast method (should add adjustLinear here, too):
+  #  red <- extractRGBChannel(img.rgb, RED)
+  #  green <- extractRGBChannel(img.rgb, GREEN)
+  #  blue <- extractRGBChannel(img.rgb, BLUE)
+  #  X <- 0.412453*red + 0.35758 *green + 0.180423*blue
+  #  Y <- 0.212671*red + 0.71516 *green + 0.072169*blue
+  #  Z <- 0.019334*red + 0.119193*green + 0.950227*blue
+  #  img.xyz <- array(c(X, Y, Z), dim=dim(img.rgb), dimnames=dim.names)
+  #
+  # Inversion to be used in XYZ-->RGB conversions.
+  # Minv <- matrix(c(3.2404542, -1.5371385, -0.4985314,
+  #                  -0.9692660, 1.8760108, 0.0415560,
+  #                  0.0556434, -0.2040259, 1.0572252), 3, byrow=TRUE)
+}
+
+
+# RGB --> "CIE xyY" color space conversion
+# http://ninedegreesbelow.com/photography/xyz-rgb.html
+# http://colormine.org/color-converter
+toxyY <- function(img.rgb) {
+  img.xyz <- toXYZ(img.rgb)
+  X <- extractXYZChannel(img.xyz, CIEXYZ_X)
+  Y <- extractXYZChannel(img.xyz, CIEXYZ_Y)
+  Z <- extractXYZChannel(img.xyz, CIEXYZ_Z)
+  s <- X+Y+Z
+  x <- X / s
+  y <- Y / s
+  dim.names <- list(NULL, NULL, c('x', 'y', 'Y'))
+  return(array(c(x, y, Y), dim=dim(img.rgb), dimnames=dim.names))
+}
+
+# Convert RGB image to an LUV image. RGB values are assumed to be between 0 and 1.
+# http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Luv.html
+# http://www.brucelindbloom.com/index.html?LContinuity.html
+# http://framewave.sourceforge.net/Manual/fw_function_020_0060_00330.html
+# http://colormine.org/color-converter
+# Note that for blacks the U and V components are undefined.
+toLUV <- function(img.rgb) {
+  # Define D65 white point: CIE chromaticity coordinates and CIE luminance
+  xn <- 0.312713
+  yn <- 0.329016
+  Yn <- 1.0
+  # Junction point correction constants:
+  eps <- 216/24389
+  kappa <- 24389/27
+  # Other constants:
+  un <- 4*xn / (-2*xn + 12*yn + 3)
+  vn <- 9*yn / (-2*xn + 12*yn + 3)
+  # Compute LUV
+  img.xyz <- toXYZ(img.rgb, make.linear=TRUE)  # First convert RGB --> XYZ
+  X <- extractXYZChannel(img.xyz, CIEXYZ_X)
+  Y <- extractXYZChannel(img.xyz, CIEXYZ_Y)
+  Z <- extractXYZChannel(img.xyz, CIEXYZ_Z)
+  u <- 4*X / (X + 15*Y + 3*Z)
+  v <- 9*Y / (X + 15*Y + 3*Z)
+  u[is.nan(u)] <- NA  # black color has undefined u and v; use NA instead of NaN
+  v[is.nan(v)] <- NA
+  r <- Y/Yn
+  L <- 116 * r^(1/3) - 16
+  mask <- r <= eps
+  L[mask] <- kappa*r[mask]  # correction
+  U <- 13*L*(u-un)
+  V <- 13*L*(v-vn)
+  img.luv <- array(c(L,U,V), dim=dim(img.rgb), dimnames=list(NULL, NULL, c('L','U','V')))
+  return(img.luv)
+  # Computed L component values are in the range [0 to 100].
+  # Computed U component values are in the range [-124 to 220], unless black.
+  # Computed V component values are in the range [-140 to 116], unless black.
+}
 
 test <- function() {
   set.seed(1)
@@ -130,4 +228,14 @@ speedTest <- function() {
   st.ref <- Sys.time(); cmp.ref <- max(abs(refFunc(255*rgb) - 255*rgb)); et.ref <- Sys.time();
   print(paste('Reference speed test: maxerror', cmp.ref, ', time', et.ref - st.ref))
 }
+
+# Test color space conversion on a single point
+# Reference values are from http://colormine.org/color-converter and R library
+example.pixel <- createImageRGB(matrix(165/255), matrix(107/255), matrix(11/255))
+stopifnot(abs(255*example.pixel - c(165, 107, 11)) < 1e-5)
+stopifnot(abs(toHSV(example.pixel) - c(37.4025965757828, 0.933333333333333, 0.647058823529412)) < 1e-5)
+stopifnot(abs(toXYZ(example.pixel)*100 - c(20.8351499726374, 18.53888482291, 2.7968391383824)) < 1e-2)  # approximately
+stopifnot(abs(toxyY(example.pixel) - c(0.494064932239259, 0.439613484225046, 18.53888482291/100)) < 1e-4)
+stopifnot(abs(toLUV(example.pixel) - c(50.1432998776774, 47.8174152455571, 48.6306348377325)) < 1e-2)
+stopifnot(abs(c(toLUV(example.pixel)) - convertColor(matrix(c(example.pixel), 1, byrow=TRUE), from="sRGB", to="Luv")) < 0.4) # poor accuracy for an unknown reason
 
