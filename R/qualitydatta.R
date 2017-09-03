@@ -15,6 +15,8 @@ library(waveslim)  # Discrete Wavelet Transform 2D
 source('photo.R')
 source('colorspace.R')
 source('imageio.R')
+source('common.R')  # k-means++
+source('viewer.R')
 
 # Datta 1: Average pixel intensity
 ##########
@@ -250,6 +252,130 @@ aspectRatioFeature <- function(img) {
   return(c(d[1]/d[2], max(d[1]/d[2], d[2]/d[1])))
 }
 
+
+# Datta 24--52: Region Composition
+###########
+
+photoSegmentationSample <- function(img.luv) {
+  # Create a dataset, might downsample if needed
+  d <- dim(img.luv)
+  nr <- d[1]
+  nc <- d[2]
+  pixels <- nr * nc
+  SIZE_LIMIT <- 10000  # in pixels, for performance reasons
+  needs.thinning <- SIZE_LIMIT < pixels
+  if (needs.thinning) {  # downsampling needed
+    thin.factor <- sqrt(pixels / SIZE_LIMIT)
+    ds.rows <- seq(1, nr, length.out=nr/thin.factor)
+    ds.cols <- seq(1, nc, length.out=nc/thin.factor)
+    x <- matrix(img.luv[ds.rows, ds.cols], ncol=3)
+  } else {
+    x <- matrix(img.luv, ncol=3)
+  }
+  colnames(x) <- c('L', 'U', 'V')
+  #print(x)
+  return(x)
+}
+
+photoSegmentationClustering <- function(x, k, num.segments, iter.max, restarts) {
+  # Clustering in LUV space
+  clustering <- kmeanspp(x, k, iter.max=iter.max, restarts=restarts)
+  return(clustering)
+}
+
+photoSegmentationMappings <- function(pixels, centers, nr) {
+  C <- t(centers)
+  chooseCluster <- function(p) which.min(colSums((C - p)^2))
+  mapping <- apply(pixels, 1, chooseCluster)
+  return(matrix(unlist(mapping), nrow=nr))
+}
+
+photoSegmentationReconstruct <- function(centers, map, num.rows) {
+  return(t(sapply(map, function(x) centers[x, ])))
+}
+
+photoSegmentationComponents <- function(clusters.2d) {
+  segDFS <- function(i, j) {  # recursive Depth-First Search for identifying connected segments
+    segments.2d[i, j] <<- seg.id
+    if (i<nr && segments.2d[i+1,j  ] == NO_SEG && clusters.2d[i+1,j  ] == cluster.id) segDFS(i+1, j  )
+    if (j<nc && segments.2d[i  ,j+1] == NO_SEG && clusters.2d[i  ,j+1] == cluster.id) segDFS(i  , j+1)
+    if (i>1  && segments.2d[i-1,j  ] == NO_SEG && clusters.2d[i-1,j  ] == cluster.id) segDFS(i-1, j  )
+    if (j>1  && segments.2d[i  ,j-1] == NO_SEG && clusters.2d[i  ,j-1] == cluster.id) segDFS(i  , j-1)
+  }
+  NO_SEG <- 0
+  nr <- nrow(clusters.2d)
+  nc <- ncol(clusters.2d)
+  segments.2d <- matrix(NO_SEG, nrow=nr, ncol=nc)
+  seg.id <- 0
+  if (nr >= 1 & nc >= 1) {
+    # quite inefficient, I know...should replace by something?? TODO
+    for (i in 1:nr) {
+      for (j in 1:nc) {
+        if (segments.2d[i, j] == NO_SEG) {
+          seg.id <- seg.id + 1  # new id for another connected component
+          cluster.id <- clusters.2d[i, j]
+          segDFS(i, j)
+        }
+      }
+    }
+  }
+  return(segments.2d)
+}
+
+photoSegmentationShow <- function(img.luv, centers, clustered.img, conn.components) {
+  nr <- dim(img.luv)[1]
+  nc <- dim(img.luv)[2]
+  img.rgb <- array(convertColor(matrix(img.luv, ncol=3), from='Luv', 'sRGB'), dim=dim(img.luv))
+  view(img.rgb, title='Original image')
+  reconstr <- photoSegmentationReconstruct(centers, clustered.img, nr)
+  reconstr.rgb <- array(convertColor(reconstr, from='Luv', 'sRGB'), dim=dim(img.luv))
+  view(reconstr.rgb, title='Reconstructed CIE LUV clustering')
+  print(conn.components)
+  m <- max(conn.components)
+  x <- conn.components
+  view(array(c(x/m, ((3*x)%%m)/m, ((5*x)%%m)/m), dim=dim(img.luv)))  # 'random' colors for segments
+  seg.sizes <- rev(sort(table(conn.components)))
+  largest.ids <- as.integer(names(head(seg.sizes, 5)))
+  largest.comps <- conn.components
+  largest.comps[!(largest.comps %in% largest.ids)] <- 0
+  largest.comps <- largest.comps / max(largest.comps)
+  view(matrix(sqrt(largest.comps), nrow=nr, ncol=nc), title='Largest connected components')
+}
+
+# Segmentation tool
+photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) {
+  nr <- dim(img.rgb)[1]
+  nc <- dim(img.rgb)[2]
+  img.luv <- toLUV(img.rgb)
+  img.luv[is.na(img.luv)] <- 0  # for black 'u' and 'v' are missing (limit is zero)
+  s <- photoSegmentationSample(img.luv)
+  k <- min(2 * num.segments, nrow(s))  # FIXME, should try many k dynamically (choose k with gap statistic?)
+  clustering <- photoSegmentationClustering(s, k, num.segments, iter.max, restarts)
+  clustered.img <- photoSegmentationMappings(matrix(img.luv, ncol=3), clustering$centers, nr)
+  conn.components <- photoSegmentationComponents(clustered.img)
+
+  # Compute Datta measures:
+  comp.sizes <- rev(sort(table(conn.components)))
+  largest <- head(comp.sizes, num.segments)
+  largest.ids <- as.integer(names(largest))
+  num.threshold.comps <- sum(largest / (nr*nc) > 0.01)  # Datta feature 24
+  num.clusters <- k  # Datta feature 25
+  hsv.pixels <- matrix(toHSV(img.rgb), ncol=3)
+  largest.hsv.avg <- t(sapply(largest.ids, function(x) colMeans(hsv.pixels[conn.components == x, ], na.rm=TRUE)))
+  largest.hsv.avg[is.nan(largest.hsv.avg)] <- 0  # when fully black or white, using zero hue
+  print(largest.hsv.avg)  # Datta 26--40
+  rel.sizes <- as.numeric(largest / (nr*nc))  # Datta 41--45
+
+  #print(hsv.pixels)
+  #avg.col.spread <-  # Datta 46
+  #avg.col.complmentary <-   # Datta 47
+  
+  photoSegmentationShow(img.luv, clustering$centers, clustered.img, conn.components)
+  'not implemented yet'
+}
+
+
+
 # References, links and tests for LUV and EMD.
 
 #rgb.centers=as.list(sapply(, function(x) ))
@@ -392,7 +518,7 @@ aspectRatioFeature <- function(img) {
 # Test image                                           EMD colorfulness distance and bucket entropy (max 6)
 #img <- readImage('../examples/uniform-buckets.png')   #  0  entropy 6 b (minimum,maximum)
 #img <- readImage('../examples/many_colors.png')       # 18
-#img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
+img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
 #img <- readImage('../examples/niemi.png')             # 49  entropy 3.67 b
 #img <- readImage('../examples/no_shift.png')          # 57
 #img <- readImage('../examples/K5_10994.JPG')          # 58
@@ -428,6 +554,9 @@ aspectRatioFeature <- function(img) {
 #print(colorfulness(img, 'grey', n=6))
 
 #print(texture(img))
+
+print(photoSegmentation(img))
+
 
 #img <- readImage('../examples/K5_10994.JPG')
 #n <- 10
