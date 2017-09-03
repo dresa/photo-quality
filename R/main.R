@@ -93,6 +93,8 @@ main <- function() {
   print(paste('Texture, hue        (Datta 10,11,12,19):', paste(tx$hue.1, tx$hue.2, tx$hue.3, paste('sum', tx$hue.sum), sep=', ')))
   print(paste('Texture, saturation (Datta 13,14,15,20):', paste(tx$sat.1, tx$sat.2, tx$sat.3, paste('sum', tx$sat.sum), sep=', ')))
   print(paste('Texture, value      (Datta 16,17,18,21):', paste(tx$val.1, tx$val.2, tx$val.3, paste('sum', tx$val.sum), sep=', ')))
+  print(paste('Size feaure (Datta 22):', paste(sizeFeature(img), collapse=', ')))
+  print(paste('Aspect ratio (Datta 23):', paste(aspectRatioFeature(img), collapse=', ')))
   ddc <- dispersionDominantColor(img.hsv)
 
   # Dominant direction, spread, and portion of the dominant color.

@@ -236,6 +236,20 @@ texture <- function(img.hsv) {
 }
 
 
+# Datta 22: size
+###########
+sizeFeature <- function(img) {
+  d <- dim(img)
+  return(d[1] + d[2])
+}
+
+# Datta 22: aspect ratio
+###########
+aspectRatioFeature <- function(img) {
+  d <- dim(img)
+  return(c(d[1]/d[2], max(d[1]/d[2], d[2]/d[1])))
+}
+
 # References, links and tests for LUV and EMD.
 
 #rgb.centers=as.list(sapply(, function(x) ))
