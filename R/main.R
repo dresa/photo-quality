@@ -24,7 +24,7 @@ source('qualitydatta.R')  # quality measurements by Datta et al
 ##########
 
 main <- function() {
-  do.view <- TRUE  #FALSE
+  do.view <- FALSE #TRUE  #FALSE
   print('=== START ===')
   filename <- '../examples/small_grid.png'
   #filename <- '../examples/blue_shift.png'
@@ -48,6 +48,8 @@ main <- function() {
   #filename <- '../examples/temple_set/temple-i-contrast.png'
   #filename <- '../examples/temple_set/temple-j-colornoise.png'
   #filename <- '../examples/temple_set/temple-k-gaussianblur.png'
+  #filename <- '../examples/almost_black.png'
+  #filename <- '../examples/grainy.jpg'
   
   img <- readImage(filename)
   img.hsv <- toHSV(img)
@@ -81,6 +83,16 @@ main <- function() {
   print(paste('Basic interval contrast:', basicIntervalContrast(img)))
   print(paste('Average Intensity (Datta 1):', avgIntensity(img.hsv)))
   print(paste('Colorfulness (Datta 2):', colorfulness(img)))
+  print(paste('Colorfulness-Grey (Datta 2 grey, n=6):', colorfulness(img, 'grey', n=6)))
+  print(paste('Average saturation (Datta 3):', avgSaturation(img.hsv)))
+  print(paste('Average hue (Datta 4):', avgHue(img.hsv)))
+  print(paste('Average central hue (Datta 5):', avgCentralHue(img.hsv)))
+  print(paste('Average central saturation (Datta 6):', avgCentralSaturation(img.hsv)))
+  print(paste('Average central intensity (Datta 7):', avgCentralIntensity(img.hsv)))
+  tx <- texture(img.hsv)
+  print(paste('Texture, hue        (Datta 10,11,12,19):', paste(tx$hue.1, tx$hue.2, tx$hue.3, paste('sum', tx$hue.sum), sep=', ')))
+  print(paste('Texture, saturation (Datta 13,14,15,20):', paste(tx$sat.1, tx$sat.2, tx$sat.3, paste('sum', tx$sat.sum), sep=', ')))
+  print(paste('Texture, value      (Datta 16,17,18,21):', paste(tx$val.1, tx$val.2, tx$val.3, paste('sum', tx$val.sum), sep=', ')))
   ddc <- dispersionDominantColor(img.hsv)
 
   # Dominant direction, spread, and portion of the dominant color.
@@ -94,10 +106,10 @@ main <- function() {
   print(paste('Color dispersion(ds):', ddc$ds, 'px'))
   # Custom normalized spatial dispersion: dominantdistances / alldistances
   print(paste('Color dispersion(custom.ds):', ddc$custom.ds))
-  if (do.view) viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
+  #if (do.view) viewDDC(filename='polarcolor.png', toHSV(img), ddc$mu, ddc$kappa)
   if (do.view) view(toBrightRGB(img), title='Pure hues')
   print('===  END  ===')
 }
-
+#Rprof(filename="Rprof.out", append=FALSE, line.profiling=TRUE)
 main()
 
