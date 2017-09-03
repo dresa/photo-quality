@@ -9,7 +9,8 @@
 # Esa Junttila
 # 2017-08-27 (originally)
 
-library(emdist)  # Earth Mover's Distance
+library(emdist)    # Earth Mover's Distance
+library(waveslim)  # Discrete Wavelet Transform 2D
 
 source('photo.R')
 source('colorspace.R')
@@ -198,9 +199,41 @@ avgCentralIntensity <- function(img.hsv) { return(avgCentral(extractHSVChannel(i
 ##########
 
 
-# Another idea for colorfulness: instead of having D1 uniform
-# on 64 buckets, why not make D1 uniform on 4 greyscale buckets?
+# Datta 10--21 Texture (graininess)
+##########
 
+waveletTexture <- function(img.channel) {
+  ASSUMED_LEVELS <- 3
+  levels <- min(c(ASSUMED_LEVELS, floor(log2(dim(img.channel)))))
+  wavelet.filter <- 'd4'  # Daubechies wavelet 'd4'
+  # Perform 2D Discrete Wavelet Transform 
+  d <- dwt.2d(img.channel, wf=wavelet.filter, J=levels)  # from 'waveslim' package
+  # reconstructed <- idwt.2d(d)  # up to image dimensions that are power of two
+  # Compute Datta measures on different frequencies (levels):
+  freq.1 <- if (levels>=1) sum(d$HH1 + d$HL1 + d$LH1, na.rm=TRUE) / (3 * length(d$HH1)) else NA
+  freq.2 <- if (levels>=2) sum(d$HH2 + d$HL2 + d$LH2, na.rm=TRUE) / (3 * length(d$HH2)) else NA
+  freq.3 <- if (levels>=3) sum(d$HH3 + d$HL3 + d$LH3, na.rm=TRUE) / (3 * length(d$HH3)) else NA
+  return(c(freq.1, freq.2, freq.3))
+}
+
+texture <- function(img.hsv) {
+  img.hsv[is.na(img.hsv)] <- 0  # local changes; DWT works only non-NA values
+  res <- lapply(HSV, function(channel) waveletTexture(extractHSVChannel(img.hsv, channel)))
+  return(list(
+    hue.1=res[[HUE$idx]][1],
+    hue.2=res[[HUE$idx]][2],
+    hue.3=res[[HUE$idx]][3],
+    sat.1=res[[SATURATION$idx]][1],
+    sat.2=res[[SATURATION$idx]][2],
+    sat.3=res[[SATURATION$idx]][3],
+    val.1=res[[VALUE$idx]][1],
+    val.2=res[[VALUE$idx]][2],
+    val.3=res[[VALUE$idx]][3],
+    hue.sum=sum(res[[HUE$idx]], na.rm=TRUE),
+    sat.sum=sum(res[[SATURATION$idx]], na.rm=TRUE),
+    val.sum=sum(res[[VALUE$idx]], na.rm=TRUE)
+  ))  # should we use absolute value??
+}
 
 
 # References, links and tests for LUV and EMD.
@@ -356,6 +389,7 @@ avgCentralIntensity <- function(img.hsv) { return(avgCentral(extractHSVChannel(i
 #img <- readImage('../examples/sharp_or_blur.png')     # 83
 #img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
 #img <- readImage('../examples/pure-red.png')           # 153.7  entropy 0 b (maximum,minimum)
+#img <- readImage('../examples/grainy.jpg')           #
 
 
 # Mono-colored images have maximum distances from/to uniform distribution.
@@ -379,6 +413,7 @@ avgCentralIntensity <- function(img.hsv) { return(avgCentral(extractHSVChannel(i
 #print(colorfulness(img, 'uniform', n=6))
 #print(colorfulness(img, 'grey', n=6))
 
+#print(texture(img))
 
 #img <- readImage('../examples/K5_10994.JPG')
 #n <- 10
