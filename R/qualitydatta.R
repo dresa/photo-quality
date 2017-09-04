@@ -266,9 +266,9 @@ photoSegmentationSample <- function(img.luv) {
   needs.thinning <- SIZE_LIMIT < pixels
   if (needs.thinning) {  # downsampling needed
     thin.factor <- sqrt(pixels / SIZE_LIMIT)
-    ds.rows <- seq(1, nr, length.out=nr/thin.factor)
-    ds.cols <- seq(1, nc, length.out=nc/thin.factor)
-    x <- matrix(img.luv[ds.rows, ds.cols], ncol=3)
+    ds.rows <- round(seq(1, nr, length.out=nr/thin.factor))
+    ds.cols <- round(seq(1, nc, length.out=nc/thin.factor))
+    x <- matrix(img.luv[ds.rows, ds.cols, ], ncol=3)
   } else {
     x <- matrix(img.luv, ncol=3)
   }
@@ -294,33 +294,110 @@ photoSegmentationReconstruct <- function(centers, map, num.rows) {
   return(t(sapply(map, function(x) centers[x, ])))
 }
 
+#photoSegmentationComponents <- function(clusters.2d) {
+#  Recursive version, too deep
+#  segDFS <- function(i, j) {  # recursive Depth-First Search for identifying connected segments
+#    segments.2d[i, j] <<- seg.id
+#    if (i<nr && segments.2d[i+1,j  ] == NO_SEG && clusters.2d[i+1,j  ] == cluster.id) segDFS(i+1, j  )
+#    if (j<nc && segments.2d[i  ,j+1] == NO_SEG && clusters.2d[i  ,j+1] == cluster.id) segDFS(i  , j+1)
+#    if (i>1  && segments.2d[i-1,j  ] == NO_SEG && clusters.2d[i-1,j  ] == cluster.id) segDFS(i-1, j  )
+#    if (j>1  && segments.2d[i  ,j-1] == NO_SEG && clusters.2d[i  ,j-1] == cluster.id) segDFS(i  , j-1)
+#  }
+#  NO_SEG <- 0
+#  nr <- nrow(clusters.2d)
+#  nc <- ncol(clusters.2d)
+#  segments.2d <- matrix(NO_SEG, nrow=nr, ncol=nc)
+#  seg.id <- 0
+#  if (nr >= 1 & nc >= 1) {
+#    # quite inefficient, I know...should replace by something?? TODO
+#    for (i in 1:nr) {
+#      for (j in 1:nc) {
+#        if (segments.2d[i, j] == NO_SEG) {
+#          seg.id <- seg.id + 1  # new id for another connected component
+#          cluster.id <- clusters.2d[i, j]
+#          segDFS(i, j)
+#        }
+#      }
+#    }
+#  }
+#  return(segments.2d)
+#}
+
+
+#photoSegmentationComponents <- function(clusters.2d) {
+#  # Very slow whileloop + stack segmentation. Should find a reasonable method instead.
+#  NO_SEG <- 0
+#  nr <- nrow(clusters.2d)
+#  nc <- ncol(clusters.2d)
+#  segments.2d <- matrix(NO_SEG, nrow=nr, ncol=nc)
+#  seg.id <- 0
+#  if (nr >= 1 & nc >= 1) {
+#    # Initialize a stack: all pixels
+#    stack <- mapply(c, rev(rep(1:nr, nc)), rev(rep(1:nc, each=nr)), SIMPLIFY=FALSE)
+#    # Introduce stack methods: pop and push
+#    st.pop <- function() {
+#      n <- length(stack)
+#      rc <- stack[[n]]
+#      stack <- stack[-n]
+#      stack <<- stack
+#      return(rc)
+#    }
+#    st.push <- function(rc) {
+#      n <- length(stack)
+#      stack[n + 1] <- list(rc)
+#      stack <<- stack
+#    }
+#    # Perform a DFS (depth-first search) with a while loop and stack
+#    pixels.left <- length(stack)
+#    while (length(stack)) {
+#      rc <- st.pop()
+#      i <- rc[1]
+#      j <- rc[2]
+#      if (segments.2d[i, j] == NO_SEG) {
+#        if (length(stack) < pixels.left) {
+#          pixels.left <- length(stack)
+#          seg.id <- seg.id + 1
+#          cluster.id <- clusters.2d[i, j]
+#          print(length(stack))
+#        }
+#        segments.2d[i, j] <- seg.id
+#        if (i<nr && segments.2d[i+1,j  ] == NO_SEG && clusters.2d[i+1,j  ] == cluster.id) st.push(c(i+1, j  ))
+#        if (j<nc && segments.2d[i  ,j+1] == NO_SEG && clusters.2d[i  ,j+1] == cluster.id) st.push(c(i  , j+1))
+#        if (i>1  && segments.2d[i-1,j  ] == NO_SEG && clusters.2d[i-1,j  ] == cluster.id) st.push(c(i-1, j  ))
+#        if (j>1  && segments.2d[i  ,j-1] == NO_SEG && clusters.2d[i  ,j-1] == cluster.id) st.push(c(i  , j-1))
+#      }
+#    }
+#  }
+#  return(segments.2d)
+#}
+
+
+
+# Third try, using a package in a clumsy way, separately for each cluster
+library(mmand)
+
 photoSegmentationComponents <- function(clusters.2d) {
-  segDFS <- function(i, j) {  # recursive Depth-First Search for identifying connected segments
-    segments.2d[i, j] <<- seg.id
-    if (i<nr && segments.2d[i+1,j  ] == NO_SEG && clusters.2d[i+1,j  ] == cluster.id) segDFS(i+1, j  )
-    if (j<nc && segments.2d[i  ,j+1] == NO_SEG && clusters.2d[i  ,j+1] == cluster.id) segDFS(i  , j+1)
-    if (i>1  && segments.2d[i-1,j  ] == NO_SEG && clusters.2d[i-1,j  ] == cluster.id) segDFS(i-1, j  )
-    if (j>1  && segments.2d[i  ,j-1] == NO_SEG && clusters.2d[i  ,j-1] == cluster.id) segDFS(i  , j-1)
-  }
-  NO_SEG <- 0
+  clusters <- sort(unique(c(clusters.2d)))
   nr <- nrow(clusters.2d)
   nc <- ncol(clusters.2d)
-  segments.2d <- matrix(NO_SEG, nrow=nr, ncol=nc)
-  seg.id <- 0
-  if (nr >= 1 & nc >= 1) {
-    # quite inefficient, I know...should replace by something?? TODO
-    for (i in 1:nr) {
-      for (j in 1:nc) {
-        if (segments.2d[i, j] == NO_SEG) {
-          seg.id <- seg.id + 1  # new id for another connected component
-          cluster.id <- clusters.2d[i, j]
-          segDFS(i, j)
-        }
-      }
-    }
+  # Separate bottom and top with an extra row of NAs ([nr,j] and [1,j+1] are neighbors)
+  component.base <- rbind(clusters.2d, NA)
+  segments <- matrix(nrow=nr+1, ncol=nc)  # initialized with NA
+  neighbor.kernel <- matrix(c(0,1,0, 1,1,1, 0,1,0), byrow=TRUE, ncol=3)
+  seg.cumu.num <- 0
+  # Accumulate segments by processing each cluster (each may give rise to multiple segments)
+  for (c.id in clusters) {
+    x <- component.base
+    x[x != c.id] <- NA
+    # Compute connected components, separated by NA, with the 'mmand' package.
+    s <- components(x, neighbor.kernel)
+    new.segs <- s[!is.na(s)]
+    segments[!is.na(s)] <- new.segs + seg.cumu.num
+    seg.cumu.num <- seg.cumu.num + max(new.segs)
   }
-  return(segments.2d)
+  return(segments[1:nr, ])  # drop the extra row of NAs
 }
+
 
 photoSegmentationShow <- function(img.luv, centers, clustered.img, conn.components) {
   nr <- dim(img.luv)[1]
@@ -330,16 +407,20 @@ photoSegmentationShow <- function(img.luv, centers, clustered.img, conn.componen
   reconstr <- photoSegmentationReconstruct(centers, clustered.img, nr)
   reconstr.rgb <- array(convertColor(reconstr, from='Luv', 'sRGB'), dim=dim(img.luv))
   view(reconstr.rgb, title='Reconstructed CIE LUV clustering')
-  print(conn.components)
   m <- max(conn.components)
   x <- conn.components
-  view(array(c(x/m, ((3*x)%%m)/m, ((5*x)%%m)/m), dim=dim(img.luv)))  # 'random' colors for segments
+  view(array(c(x/m, ((3*x)%%m)/m, ((7*x)%%m)/m), dim=dim(img.luv)))  # 'random' colors for segments
   seg.sizes <- rev(sort(table(conn.components)))
-  largest.ids <- as.integer(names(head(seg.sizes, 5)))
+  NUM_SEG <- 5
+  largest.ids <- as.integer(names(head(seg.sizes, NUM_SEG)))
   largest.comps <- conn.components
-  largest.comps[!(largest.comps %in% largest.ids)] <- 0
-  largest.comps <- largest.comps / max(largest.comps)
-  view(matrix(sqrt(largest.comps), nrow=nr, ncol=nc), title='Largest connected components')
+  largest.comps[!(largest.comps %in% largest.ids)] <- 0  # non-segments are black
+  lc.val <- largest.comps
+  u <- sort(unique(c(largest.comps)))
+  for (i in 1:length(u)) {
+    lc.val[lc.val == u[i]] <- (i-1)/(length(u)-1)
+  }
+  view(matrix(lc.val, nrow=nr, ncol=nc), title='Largest connected components')
 }
 
 # Segmentation tool
@@ -353,6 +434,7 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
   clustering <- photoSegmentationClustering(s, k, num.segments, iter.max, restarts)
   clustered.img <- photoSegmentationMappings(matrix(img.luv, ncol=3), clustering$centers, nr)
   conn.components <- photoSegmentationComponents(clustered.img)
+  #print(conn.components)
 
   # Compute Datta measures:
   comp.sizes <- rev(sort(table(conn.components)))
@@ -363,16 +445,41 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
   hsv.pixels <- matrix(toHSV(img.rgb), ncol=3)
   largest.hsv.avg <- t(sapply(largest.ids, function(x) colMeans(hsv.pixels[conn.components == x, ], na.rm=TRUE)))
   largest.hsv.avg[is.nan(largest.hsv.avg)] <- 0  # when fully black or white, using zero hue
-  print(largest.hsv.avg)  # Datta 26--40
+  #print(largest.hsv.avg)  # Datta 26--40
   rel.sizes <- as.numeric(largest / (nr*nc))  # Datta 41--45
 
-  #print(hsv.pixels)
+  ## Skipping these two measures, as their definition seems unclear and non-intuitive.
   #avg.col.spread <-  # Datta 46
   #avg.col.complmentary <-   # Datta 47
+  
+  seg.idx <- lapply(largest.ids, function(x) which(conn.components == x))
+  names(seg.idx) <- largest.ids
+  BLOCKS <- 3
+  seg.avg.row <- lapply(seg.idx, function(idx) mean(((idx-1) %% nr) + 1))
+  seg.avg.col <- lapply(seg.idx, function(idx) mean(((idx-1) %/% nr) + 1))
+  block.row <- findInterval(seg.avg.row, seq(1, nr, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  block.col <- findInterval(seg.avg.col, seq(1, nc, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  block.code <- 10 * block.row + block.col  # Datta 48--52
+  print(block.code)
+  # My own location variant: distance from center, max 1.0
+  sr <- unlist(seg.avg.row)
+  sc <- unlist(seg.avg.col)
+  mid.r <- (nr + 1) / 2
+  mid.c <- (nc + 1) / 2
+  max.dist <- sqrt((mid.r-1)^2 + (mid.c-1)^2)
+  avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
+  block.dev <- avg.dist / max.dist
+  print(block.dev)  # In addition to Datta 48--52
+
+  
   
   photoSegmentationShow(img.luv, clustering$centers, clustered.img, conn.components)
   'not implemented yet'
 }
+
+
+# Next up: choose k in clustering automatically
+
 
 
 
@@ -518,13 +625,13 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
 # Test image                                           EMD colorfulness distance and bucket entropy (max 6)
 #img <- readImage('../examples/uniform-buckets.png')   #  0  entropy 6 b (minimum,maximum)
 #img <- readImage('../examples/many_colors.png')       # 18
-img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
+#img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
 #img <- readImage('../examples/niemi.png')             # 49  entropy 3.67 b
 #img <- readImage('../examples/no_shift.png')          # 57
 #img <- readImage('../examples/K5_10994.JPG')          # 58
 #img <- readImage('../examples/penguin.jpg')           # 61
 #img <- readImage('../examples/colorfulness-test.png') # 64
-#img <- readImage('../examples/dark_city.png')         # 65
+img <- readImage('../examples/dark_city.png')         # 65
 #img <- readImage('../examples/almost_black.png')      # 83
 #img <- readImage('../examples/sharp_or_blur.png')     # 83
 #img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
