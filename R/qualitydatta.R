@@ -11,6 +11,7 @@
 
 library(emdist)    # Earth Mover's Distance
 library(waveslim)  # Discrete Wavelet Transform 2D
+library(NbClust)   # Optimal number of clusters
 
 source('photo.R')
 source('colorspace.R')
@@ -471,7 +472,11 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
   block.dev <- avg.dist / max.dist
   print(block.dev)  # In addition to Datta 48--52
 
-  
+
+  ## Use several methods to choose the number of clusters;
+  ## very slow, cannot be used for even moderate-size images.
+  #num.clust <- NbClust(data=s, distance='euclidean', min.nc=2, max.nc=25, method='kmeans', index='alllong')
+  #print(num.clust)
   
   photoSegmentationShow(img.luv, clustering$centers, clustered.img, conn.components)
   'not implemented yet'
@@ -625,13 +630,13 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
 # Test image                                           EMD colorfulness distance and bucket entropy (max 6)
 #img <- readImage('../examples/uniform-buckets.png')   #  0  entropy 6 b (minimum,maximum)
 #img <- readImage('../examples/many_colors.png')       # 18
-#img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
+img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
 #img <- readImage('../examples/niemi.png')             # 49  entropy 3.67 b
 #img <- readImage('../examples/no_shift.png')          # 57
 #img <- readImage('../examples/K5_10994.JPG')          # 58
 #img <- readImage('../examples/penguin.jpg')           # 61
 #img <- readImage('../examples/colorfulness-test.png') # 64
-img <- readImage('../examples/dark_city.png')         # 65
+#img <- readImage('../examples/dark_city.png')         # 65
 #img <- readImage('../examples/almost_black.png')      # 83
 #img <- readImage('../examples/sharp_or_blur.png')     # 83
 #img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
