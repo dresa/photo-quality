@@ -51,13 +51,13 @@ A1inv <- function(x) {
 # https://gist.github.com/mahito-sugiyama/ef54a3b17fff4629f106
 kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
   n <- nrow(x)  # number of data points
-  centers <- integer(k) * NA  # row IDs of centers
   # Allocate distances: [i,j] --> distance between point x[i, ] and center x[centers[j], ]
   distances <- matrix(numeric(n*(k-1)), ncol=k-1) * NA
   res.best <- list(tot.withinss=Inf)  # the best result among restarts
 
   for (rerun in 1:restarts) {
     # K-means++ initialization:
+    centers <- integer(k) * NA  # row IDs of centers
     pr <- rep(1/n, times=n)  # uniform probabilities for sampling first center
     for (i in 1:(k - 1)) {
       centers[i] <- sample.int(n, size=1, prob = pr) # pick the ith center
@@ -66,14 +66,16 @@ kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
 
       # Compute probability for the next sampling
       freq <- apply(distances[, 1:i, drop=FALSE], 1, min)
+      if (sum(freq) == 0) break
       pr <- freq / sum(freq)  # probabilities for the next sampling
     }
-    centers[k] <- sample.int(n, size=1, prob=pr)  # pick the last (kth) center
+    if (sum(freq) != 0) centers[k] <- sample.int(n, size=1, prob=pr)  # pick the last (kth) center
     ## Perform k-means clusterin with the obtained centers:
-    res <- kmeans(x, x[centers, ], iter.max=iter.max, nstart=1, ...)
+    C <- as.integer(na.omit(centers))
+    res <- kmeans(x, x[C, ], iter.max=iter.max, nstart=1, ...)
     ## Store the best result
     if (res$tot.withinss < res.best$tot.withinss) {
-      res$initial.centers <- x[centers, ]
+      res$initial.centers <- x[C, ]
       res.best <- res
     }
   }

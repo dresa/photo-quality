@@ -278,7 +278,7 @@ photoSegmentationSample <- function(img.luv) {
   return(x)
 }
 
-photoSegmentationClustering <- function(x, k, num.segments, iter.max, restarts) {
+photoSegmentationClustering <- function(x, k, iter.max, restarts) {
   # Clustering in LUV space
   clustering <- kmeanspp(x, k, iter.max=iter.max, restarts=restarts)
   return(clustering)
@@ -431,8 +431,46 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
   img.luv <- toLUV(img.rgb)
   img.luv[is.na(img.luv)] <- 0  # for black 'u' and 'v' are missing (limit is zero)
   s <- photoSegmentationSample(img.luv)
-  k <- min(2 * num.segments, nrow(s))  # FIXME, should try many k dynamically (choose k with gap statistic?)
-  clustering <- photoSegmentationClustering(s, k, num.segments, iter.max, restarts)
+  #k <- min(2 * num.segments, nrow(s))  # FIXME, should try many k dynamically (choose k with gap statistic?)
+  computeClusteringMDL <- function(k) {
+    # Sample L, U, V coordinates from uniform distributions, measured at integer granularity.
+    # Computed L component values are in the range [0 to 100].
+    # Computed U component values are in the range [-124 to 220].
+    # Computed V component values are in the range [-140 to 116].
+    
+    # Encode model, with k clusters:
+    mdl.k <- floor(log2(k)) + 2*floor(log2(floor(log2(k))+1)) + 1  # Elias delta encoding, bits
+    # Centers and stdev from uniform distribution, with one decimal of precision
+    mdl.centers <- k * (log2(101*10) + log2(345*10) + log2(257*10))
+    mdl.std <- k * log2(100*10)
+    print(k)
+    if (k==1) {
+      s.diff <- colMeans(s) - s
+      # Encode data:
+      mdl.map <- 0
+      mdl.diffs <- sum(log2(1/dnorm(round(s.diff,1), sd=round(sd(s.diff),1))))
+    } else if (k>=2) {
+      res.k <- photoSegmentationClustering(s, k, iter.max, restarts)
+      s.diff <- res.k$centers[res.k$cluster, ] - s
+      mdl.map <- nrow(s) * ncol(s) * log2(k)  # for each pixel, record its cluster
+      mdl.diffs <- 0
+      for (i in 1:k) {
+        diff.part <- s.diff[res.k$cluster == i, ]
+        # Encode data:
+        mdl.diffs <- mdl.diffs + sum(log2(1/dnorm(round(diff.part,1), sd=max(0.1,round(sd(diff.part),1)))))
+      }
+    } else { stop(paste('Illegal number of clusters:', k)) }
+    mdl <- mdl.k + mdl.centers + mdl.std + mdl.map + mdl.diffs
+    return(mdl)
+  }
+  mdl <- sapply(1:30, computeClusteringMDL)
+  print(mdl)
+  print(which.min(mdl))
+
+  k<-10
+  clustering <- photoSegmentationClustering(s, k, iter.max, restarts)
+  print(clustering)
+
   clustered.img <- photoSegmentationMappings(matrix(img.luv, ncol=3), clustering$centers, nr)
   conn.components <- photoSegmentationComponents(clustered.img)
   #print(conn.components)
@@ -630,7 +668,7 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
 # Test image                                           EMD colorfulness distance and bucket entropy (max 6)
 #img <- readImage('../examples/uniform-buckets.png')   #  0  entropy 6 b (minimum,maximum)
 #img <- readImage('../examples/many_colors.png')       # 18
-img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
+#img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
 #img <- readImage('../examples/niemi.png')             # 49  entropy 3.67 b
 #img <- readImage('../examples/no_shift.png')          # 57
 #img <- readImage('../examples/K5_10994.JPG')          # 58
@@ -639,10 +677,10 @@ img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
 #img <- readImage('../examples/dark_city.png')         # 65
 #img <- readImage('../examples/almost_black.png')      # 83
 #img <- readImage('../examples/sharp_or_blur.png')     # 83
-#img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
+img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
 #img <- readImage('../examples/pure-red.png')           # 153.7  entropy 0 b (maximum,minimum)
 #img <- readImage('../examples/grainy.jpg')           #
-
+#img <- readImage('../examples/datta-colorfulness-high-2.png')
 
 # Mono-colored images have maximum distances from/to uniform distribution.
 # Ranging from 75.0 (bucket 43/64: light-grey) up to 153.7 (bucket 4/64: bright red).
