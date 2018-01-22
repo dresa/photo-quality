@@ -438,17 +438,21 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
     # Computed U component values are in the range [-124 to 220].
     # Computed V component values are in the range [-140 to 116].
     
+    nd <- 1 # granularity, number of digits
+    wd <- 1/(10^nd)  # precision, width of a bucket
+    b <- 1/wd  # number of buckets per unit
     # Encode model, with k clusters:
-    mdl.k <- floor(log2(k)) + 2*floor(log2(floor(log2(k))+1)) + 1  # Elias delta encoding, bits
+    eliasDelta <- function(n) floor(log2(n)) + 2*floor(log2(floor(log2(n))+1)) + 1  # Elias delta encoding, bits
+    mdl.k <- eliasDelta(k)
     # Centers and stdev from uniform distribution, with one decimal of precision
-    mdl.centers <- k * (log2(101*10) + log2(345*10) + log2(257*10))
-    mdl.std <- k * log2(100*10)
+    mdl.centers <- k * (log2(101*b) + log2(345*b) + log2(257*b))
+    mdl.std <- k * log2(100*b)
     print(k)
     if (k==1) {
       s.diff <- colMeans(s) - s
       # Encode data:
-      mdl.map <- 0
-      mdl.diffs <- sum(log2(1/dnorm(round(s.diff,1), sd=round(sd(s.diff),1))))
+      mdl.map <- 0  # only one cluster, so no labeling needed
+      mdl.diffs <- sum(log2(1/(dnorm(round(s.diff,nd), sd=round(sd(s.diff),nd))*wd)))
     } else if (k>=2) {
       res.k <- photoSegmentationClustering(s, k, iter.max, restarts)
       s.diff <- res.k$centers[res.k$cluster, ] - s
@@ -457,9 +461,10 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
       for (i in 1:k) {
         diff.part <- s.diff[res.k$cluster == i, ]
         # Encode data:
-        mdl.diffs <- mdl.diffs + sum(log2(1/dnorm(round(diff.part,1), sd=max(0.1,round(sd(diff.part),1)))))
+        mdl.diffs <- mdl.diffs + sum(log2(1/(dnorm(round(diff.part,nd), sd=max(wd,round(sd(diff.part),nd)))*wd)))
       }
     } else { stop(paste('Illegal number of clusters:', k)) }
+    #print(paste(c('MDLs', mdl.k, mdl.centers, mdl.std, mdl.map, mdl.diffs), collapse=' ', sep=', '))
     mdl <- mdl.k + mdl.centers + mdl.std + mdl.map + mdl.diffs
     return(mdl)
   }
