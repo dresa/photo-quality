@@ -247,7 +247,7 @@ sizeFeature <- function(img) {
   return(d[1] + d[2])
 }
 
-# Datta 22: aspect ratio
+# Datta 23: aspect ratio
 ###########
 aspectRatioFeature <- function(img) {
   d <- dim(img)
@@ -431,22 +431,24 @@ photoSegmentationShow <- function(img.luv, centers, clustered.img, conn.componen
   view(matrix(lc.val, nrow=nr, ncol=nc), title=paste0('Largest connected components (', NUM_SEG, ')'))
 }
 
-# Segmentation tool
-photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) {
-  img.luv <- toLUV(img.rgb)
-  img.luv[is.na(img.luv)] <- 0  # for black 'u' and 'v' are missing (limit to inf is zero)
-  sample <- photoSegmentationSample(img.luv)
-  s <- sample$points
-  d <- sample$dim
-  nr <- d[1]  # possibly downsampled
-  nc <- d[2]  # possibly downsampled
+# Choose optimal number of clusters based on MDL (Minimum Description Length) principle.
+# This function also defines the segments in the image.
+chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.max=30, iter.max=20, restarts=3) {
+  s <- img.luv.points  # image with points as rows and LUV values as columns
+  nr <- num.rows
+  nc <- num.cols
+  stopifnot(nr * nc == nrow(s))
 
+  ## Using several methods to choose k is too slow. Infeasible even for moderate-size images.
+  #num.clust <- NbClust(data=s, distance='euclidean', min.nc=2, max.nc=25, method='kmeans', index='alllong')
+  #print(num.clust)
+  
   computeClusteringMDL <- function(k) {
     # Sample L, U, V coordinates from uniform distributions, measured at integer granularity.
     # Computed L component values are in the range [0 to 100].
     # Computed U component values are in the range [-124 to 220].
     # Computed V component values are in the range [-140 to 116].
-
+    
     # Encode model, with k clusters:
     mdl.dim <- eliasDelta(nr) + eliasDelta(nc)
     mdl.k <- log2(nr*nc)
@@ -458,16 +460,6 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) 
     if (k==0) {
       mdl.map <- 0
       mdl.diffs <- nr * nc * (log2(101) + log2(345) + log2(257))
-    #} else if (k==1) {
-    #  s.diff <- scale(s, scale=FALSE)  # deviations from column averages (single cluster center)
-    #  #col.means <- attr(s.diff, "scaled:center"))
-    #  mdl.map <- 0  # only one cluster, so no labeling needed
-    #  xs <- round(s.diff)
-    #  sds <- max(round(sd(s.diff)),1)
-    #  probs <- (dnorm(xs-delta, sd=sds) + dnorm(xs, sd=sds) + dnorm(xs+delta, sd=sds)) / 3  # TODO: scaling decimals
-    #  mdl.diffs <- sum(log2(1/probs))
-    #  #print(mdl.diffs)
-    #} else if (k>=2) {
     } else if (k>=1) {
       res.k <- photoSegmentationClustering(s, k, iter.max, restarts)
       s.diff <- s - res.k$centers[res.k$cluster, ]
@@ -489,23 +481,58 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) 
     mdl <- mdl.k + mdl.centers + mdl.std + mdl.map + mdl.diffs
     return(mdl)
   }
-  max.k <- 30
-  mdl <- sapply(0:max.k, computeClusteringMDL)
-  names(mdl) <- 0:max.k
+
+  mdl <- sapply(0:k.max, computeClusteringMDL)
+  names(mdl) <- 0:k.max
   mdl.k <- as.integer(names(mdl)[which.min(mdl)])
-  k<-mdl.k
-  clustering <- photoSegmentationClustering(s, k, iter.max, restarts)
-  #print(clustering)
-  #print(mdl)
-  #print(paste('Optimal k =', mdl.k))
+  clustering <- photoSegmentationClustering(s, mdl.k, iter.max, restarts)
+  return(list(clustering=clustering, mdl.values=mdl, optimal.k=mdl.k))
+}
+
+
+# Segmentation tool for images, automatically chooses k (optimal number of clusters)
+photoSegmentation <- function(img.rgb) {
+  # Preprocess:
+  # * convert to LUV color space (for meaningful clustering)
+  # * and downsample resolution (for performance)
+  img.luv <- toLUV(img.rgb)
+  img.luv[is.na(img.luv)] <- 0  # for black 'u' and 'v' are missing (limit to inf is zero)
+  sample <- photoSegmentationSample(img.luv)
+
+  k.clusters <- chooseNumberClusters(sample$points, sample$dim[1], sample$dim[2])
 
   # Now we have chosen 'k' and k cluster centers
-  # Use the full image again
+  # Now use the full image (instead of a downsampled image)
   nr.img <- nrow(img.rgb)
   nc.img <- ncol(img.rgb)
-  clustered.img <- photoSegmentationMappings(matrix(img.luv, ncol=3), clustering$centers, nr.img)
+  k.centers <- k.clusters$clustering$centers
+  clustered.img <- photoSegmentationMappings(matrix(img.luv, ncol=3), k.centers, nr.img)
   conn.components <- photoSegmentationComponents(clustered.img)
   #print(conn.components)
+
+  # When debugging, enable the folloing line. Debug by viewing images:
+  #photoSegmentationShow(img.luv, k.centers, clustered.img, conn.components)
+
+  return(
+    list(
+      img.rgb=img.rgb,
+      img.luv=img.luv,
+      clustering = k.clusters$clustering,
+      mdl.values=k.clusters$mdl.values,
+      optimal.k=k.clusters$optimal.k,
+      conn.components=conn.components
+    )
+  )
+}
+
+
+# Datta measures 24--52 based on image segmentation (except 46 & 47)
+regionCompositionFeatures <- function(img.rgb, num.segments=5) {
+  nr.img <- nrow(img.rgb)
+  nc.img <- ncol(img.rgb)
+  seg <- photoSegmentation(img.rgb)
+  conn.components <- seg$conn.components
+  k <- seg$optimal.k
 
   # Compute Datta measures:
   comp.sizes <- rev(sort(table(conn.components)))
@@ -517,8 +544,8 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) 
   largest.hsv.avg <- t(sapply(largest.ids, function(x) colMeans(hsv.pixels[conn.components == x, ], na.rm=TRUE)))
   largest.hsv.avg[is.nan(largest.hsv.avg)] <- 0  # when fully black or white, using zero hue
   #print(largest.hsv.avg)  # Datta 26--40
-  rel.sizes <- as.numeric(largest / (nr.img * nc.img))
-
+  rel.sizes <- as.numeric(largest / (nr.img * nc.img)) # Datta 41--45
+  
   ## Skipping these two measures, as their definition seems unclear and non-intuitive.
   #avg.col.spread <-  # Datta 46
   #avg.col.complmentary <-   # Datta 47
@@ -531,7 +558,7 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) 
   block.row <- findInterval(seg.avg.row, seq(1, nr.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
   block.col <- findInterval(seg.avg.col, seq(1, nc.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
   block.code <- 10 * block.row + block.col  # Datta 48--52
-  print(block.code)
+  #print(block.code)
   # My own location variant: distance from center, max 1.0
   sr <- unlist(seg.avg.row)
   sc <- unlist(seg.avg.col)
@@ -539,23 +566,19 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) 
   mid.c <- (nc.img + 1) / 2
   max.dist <- sqrt((mid.r-1)^2 + (mid.c-1)^2)
   avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
-  block.dev <- avg.dist / max.dist
-  print(block.dev)  # In addition to Datta 48--52
-
-
-  ## Use several methods to choose the number of clusters;
-  ## very slow, cannot be used for even moderate-size images.
-  #num.clust <- NbClust(data=s, distance='euclidean', min.nc=2, max.nc=25, method='kmeans', index='alllong')
-  #print(num.clust)
+  block.dev <- avg.dist / max.dist  # Esa's proxy to Datta 48--52
+  #print(block.dev)  # In addition to Datta 48--52
   
-  photoSegmentationShow(img.luv, clustering$centers, clustered.img, conn.components)
-
-  'not implemented yet'
+  return(list(
+    num.large.patches=num.threshold.comps, # Datta 24
+    num.clusters=num.clusters,     # Datta 25
+    avg.patch.hsv=largest.hsv.avg, # Datta 26--40
+    rel.patch.sizes=rel.sizes,      # Datta 41--45
+                                   # excluding Datta 46 & 47
+    segment.positions=block.code,  # Datta 48--52
+    segment.distances=block.dev    # My own proxy for Datta 48--52: distances from center
+  ))
 }
-
-
-# Next up: choose k in clustering automatically
-
 
 
 
@@ -707,7 +730,7 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) 
 #img <- readImage('../examples/K5_10994.JPG')          # 58
 #img <- readImage('../examples/penguin.jpg')           # 61
 #img <- readImage('../examples/colorfulness-test.png') # 64
-img <- readImage('../examples/dark_city.png')         # 65
+#img <- readImage('../examples/dark_city.png')         # 65
 #img <- readImage('../examples/almost_black.png')      # 83
 #img <- readImage('../examples/sharp_or_blur.png')     # 83
 #img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
@@ -739,7 +762,8 @@ img <- readImage('../examples/dark_city.png')         # 65
 
 #print(texture(img))
 
-print(photoSegmentation(img))
+# When debugging, enable the folloing line:
+#print(regionCompositionFeatures(img))
 
 
 #img <- readImage('../examples/K5_10994.JPG')

@@ -65,7 +65,7 @@ kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
         # Compute distances from points to center i; use squared Euclidean (no effect):
         distances[, i] <- rowSums((x - rep(x[centers[i], ], each=n))^2)
         # Compute probability for the next sampling
-        freq <- apply(distances[, 1:i, drop=FALSE], 1, min)
+        freq <- apply(distances[, 1:i, drop=FALSE], 1, min)  # FIXME, make somehow faster!
         if (sum(freq) == 0) break
         pr <- freq / sum(freq)  # probabilities for the next sampling
       }
@@ -113,6 +113,7 @@ kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
 
 ## Evidence about R's kmeans bug which still existed in R 3.2.1, bur was fixed until 3.4.3.
 ## When only one cluster (k=1), passing the initial cluster center (matrix with one row) fails.
+## Documented also here: https://bugs.r-project.org/bugzilla3/show_bug.cgi?id=16623
 #x <- matrix(c(
 #  1,2,3,
 #  3,6,-2,
@@ -134,4 +135,7 @@ kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
 #)
 ## Error: number of cluster centres must lie between 1 and nrow(x)
 
+
+#m <- matrix(c(27,12,9,13,8,3,2,25,16,30,11,18,14,4,23,5,10,19,1,24,29,7,17,6,21,26,20,22,15,28), ncol=6)
+#clust <- kmeanspp(m, 4)
 
