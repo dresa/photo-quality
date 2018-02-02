@@ -18,6 +18,7 @@ source('colorspace.R')
 source('imageio.R')
 source('common.R')  # k-means++
 source('viewer.R')
+source('mdl.R')
 
 # Datta 1: Average pixel intensity
 ##########
@@ -270,17 +271,21 @@ photoSegmentationSample <- function(img.luv) {
     ds.rows <- round(seq(1, nr, length.out=nr/thin.factor))
     ds.cols <- round(seq(1, nc, length.out=nc/thin.factor))
     x <- matrix(img.luv[ds.rows, ds.cols, ], ncol=3)
+    d.new <- c(length(ds.rows), length(ds.cols))
   } else {
     x <- matrix(img.luv, ncol=3)
+    d.new <- c(nr, nc)
   }
   colnames(x) <- c('L', 'U', 'V')
-  #print(x)
-  return(x)
+  return(list(points=x, dim=d.new))
 }
 
 photoSegmentationClustering <- function(x, k, iter.max, restarts) {
   # Clustering in LUV space
-  clustering <- kmeanspp(x, k, iter.max=iter.max, restarts=restarts)
+  # If k=0, then simply return the column means;
+  # not a clustering but to bring robustness in viewing images.
+  if (k>=1) { clustering <- kmeanspp(x, k, iter.max=iter.max, restarts=restarts) }
+  else { clustering <- list(centers=matrix(colMeans(x), ncol=3)) }
   return(clustering)
 }
 
@@ -407,12 +412,14 @@ photoSegmentationShow <- function(img.luv, centers, clustered.img, conn.componen
   view(img.rgb, title='Original image')
   reconstr <- photoSegmentationReconstruct(centers, clustered.img, nr)
   reconstr.rgb <- array(convertColor(reconstr, from='Luv', 'sRGB'), dim=dim(img.luv))
-  view(reconstr.rgb, title='Reconstructed CIE LUV clustering')
+  nclus <- nrow(centers)
+  view(reconstr.rgb, title=paste0('Reconstructed CIE LUV (', nclus, ' nearest clusters)'))
   m <- max(conn.components)
   x <- conn.components
-  view(array(c(x/m, ((3*x)%%m)/m, ((7*x)%%m)/m), dim=dim(img.luv)))  # 'random' colors for segments
+  rnd.title <- paste('Random-colored', m, 'connected segments from', nclus, 'clusters')
+  view(array(c(x/m, ((3*x)%%m)/m, ((7*x)%%m)/m), dim=dim(img.luv)), title=rnd.title)
   seg.sizes <- rev(sort(table(conn.components)))
-  NUM_SEG <- 5
+  NUM_SEG <- 10
   largest.ids <- as.integer(names(head(seg.sizes, NUM_SEG)))
   largest.comps <- conn.components
   largest.comps[!(largest.comps %in% largest.ids)] <- 0  # non-segments are black
@@ -421,62 +428,82 @@ photoSegmentationShow <- function(img.luv, centers, clustered.img, conn.componen
   for (i in 1:length(u)) {
     lc.val[lc.val == u[i]] <- (i-1)/(length(u)-1)
   }
-  view(matrix(lc.val, nrow=nr, ncol=nc), title='Largest connected components')
+  view(matrix(lc.val, nrow=nr, ncol=nc), title=paste0('Largest connected components (', NUM_SEG, ')'))
 }
 
 # Segmentation tool
-photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) {
-  nr <- dim(img.rgb)[1]
-  nc <- dim(img.rgb)[2]
+photoSegmentation <- function(img.rgb, num.segments=5, iter.max=20, restarts=3) {
   img.luv <- toLUV(img.rgb)
-  img.luv[is.na(img.luv)] <- 0  # for black 'u' and 'v' are missing (limit is zero)
-  s <- photoSegmentationSample(img.luv)
-  #k <- min(2 * num.segments, nrow(s))  # FIXME, should try many k dynamically (choose k with gap statistic?)
+  img.luv[is.na(img.luv)] <- 0  # for black 'u' and 'v' are missing (limit to inf is zero)
+  sample <- photoSegmentationSample(img.luv)
+  s <- sample$points
+  d <- sample$dim
+  nr <- d[1]  # possibly downsampled
+  nc <- d[2]  # possibly downsampled
+
   computeClusteringMDL <- function(k) {
     # Sample L, U, V coordinates from uniform distributions, measured at integer granularity.
     # Computed L component values are in the range [0 to 100].
     # Computed U component values are in the range [-124 to 220].
     # Computed V component values are in the range [-140 to 116].
-    
-    nd <- 1 # granularity, number of digits
-    wd <- 1/(10^nd)  # precision, width of a bucket
-    b <- 1/wd  # number of buckets per unit
+
     # Encode model, with k clusters:
-    eliasDelta <- function(n) floor(log2(n)) + 2*floor(log2(floor(log2(n))+1)) + 1  # Elias delta encoding, bits
-    mdl.k <- eliasDelta(k)
-    # Centers and stdev from uniform distribution, with one decimal of precision
-    mdl.centers <- k * (log2(101*b) + log2(345*b) + log2(257*b))
-    mdl.std <- k * log2(100*b)
-    print(k)
-    if (k==1) {
-      s.diff <- colMeans(s) - s
-      # Encode data:
-      mdl.map <- 0  # only one cluster, so no labeling needed
-      mdl.diffs <- sum(log2(1/(dnorm(round(s.diff,nd), sd=round(sd(s.diff),nd))*wd)))
-    } else if (k>=2) {
+    mdl.dim <- eliasDelta(nr) + eliasDelta(nc)
+    mdl.k <- log2(nr*nc)
+    # Cluster centers and stdev from uniform distribution, with unit precision
+    mdl.centers <- k * (log2(101) + log2(345) + log2(257))
+    mdl.std <- k * log2(100)
+    delta <- 0.5
+    #print(paste('k=', k))
+    if (k==0) {
+      mdl.map <- 0
+      mdl.diffs <- nr * nc * (log2(101) + log2(345) + log2(257))
+    #} else if (k==1) {
+    #  s.diff <- scale(s, scale=FALSE)  # deviations from column averages (single cluster center)
+    #  #col.means <- attr(s.diff, "scaled:center"))
+    #  mdl.map <- 0  # only one cluster, so no labeling needed
+    #  xs <- round(s.diff)
+    #  sds <- max(round(sd(s.diff)),1)
+    #  probs <- (dnorm(xs-delta, sd=sds) + dnorm(xs, sd=sds) + dnorm(xs+delta, sd=sds)) / 3  # TODO: scaling decimals
+    #  mdl.diffs <- sum(log2(1/probs))
+    #  #print(mdl.diffs)
+    #} else if (k>=2) {
+    } else if (k>=1) {
       res.k <- photoSegmentationClustering(s, k, iter.max, restarts)
-      s.diff <- res.k$centers[res.k$cluster, ] - s
-      mdl.map <- nrow(s) * ncol(s) * log2(k)  # for each pixel, record its cluster
+      s.diff <- s - res.k$centers[res.k$cluster, ]
+      cluster.mat <- matrix(res.k$cluster, nrow=nr)
+      mdl.map.old <- nr * nc * log2(k)  # for each pixel, record its cluster
+      mdl.map.details <- mdlRle2d(cluster.mat, k)
+      mdl.map <- mdl.map.details$values + mdl.map.details$widths
       mdl.diffs <- 0
       for (i in 1:k) {
         diff.part <- s.diff[res.k$cluster == i, ]
         # Encode data:
-        mdl.diffs <- mdl.diffs + sum(log2(1/(dnorm(round(diff.part,nd), sd=max(wd,round(sd(diff.part),nd)))*wd)))
+        part.sd <- max(1, round(sd(diff.part)))
+        xs <- round(diff.part)
+        part.probs <- (dnorm(xs-delta, sd=part.sd) + dnorm(xs, sd=part.sd) + dnorm(xs+delta, sd=part.sd)) / 3
+        mdl.diffs <- mdl.diffs + sum(log2(1/(part.probs)))
       }
     } else { stop(paste('Illegal number of clusters:', k)) }
     #print(paste(c('MDLs', mdl.k, mdl.centers, mdl.std, mdl.map, mdl.diffs), collapse=' ', sep=', '))
     mdl <- mdl.k + mdl.centers + mdl.std + mdl.map + mdl.diffs
     return(mdl)
   }
-  mdl <- sapply(1:30, computeClusteringMDL)
-  print(mdl)
-  print(which.min(mdl))
-
-  k<-10
+  max.k <- 30
+  mdl <- sapply(0:max.k, computeClusteringMDL)
+  names(mdl) <- 0:max.k
+  mdl.k <- as.integer(names(mdl)[which.min(mdl)])
+  k<-mdl.k
   clustering <- photoSegmentationClustering(s, k, iter.max, restarts)
-  print(clustering)
+  #print(clustering)
+  #print(mdl)
+  #print(paste('Optimal k =', mdl.k))
 
-  clustered.img <- photoSegmentationMappings(matrix(img.luv, ncol=3), clustering$centers, nr)
+  # Now we have chosen 'k' and k cluster centers
+  # Use the full image again
+  nr.img <- nrow(img.rgb)
+  nc.img <- ncol(img.rgb)
+  clustered.img <- photoSegmentationMappings(matrix(img.luv, ncol=3), clustering$centers, nr.img)
   conn.components <- photoSegmentationComponents(clustered.img)
   #print(conn.components)
 
@@ -484,13 +511,13 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
   comp.sizes <- rev(sort(table(conn.components)))
   largest <- head(comp.sizes, num.segments)
   largest.ids <- as.integer(names(largest))
-  num.threshold.comps <- sum(largest / (nr*nc) > 0.01)  # Datta feature 24
+  num.threshold.comps <- sum(largest / (nr.img * nc.img) > 0.01)  # Datta feature 24
   num.clusters <- k  # Datta feature 25
   hsv.pixels <- matrix(toHSV(img.rgb), ncol=3)
   largest.hsv.avg <- t(sapply(largest.ids, function(x) colMeans(hsv.pixels[conn.components == x, ], na.rm=TRUE)))
   largest.hsv.avg[is.nan(largest.hsv.avg)] <- 0  # when fully black or white, using zero hue
   #print(largest.hsv.avg)  # Datta 26--40
-  rel.sizes <- as.numeric(largest / (nr*nc))  # Datta 41--45
+  rel.sizes <- as.numeric(largest / (nr.img * nc.img))
 
   ## Skipping these two measures, as their definition seems unclear and non-intuitive.
   #avg.col.spread <-  # Datta 46
@@ -499,17 +526,17 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
   seg.idx <- lapply(largest.ids, function(x) which(conn.components == x))
   names(seg.idx) <- largest.ids
   BLOCKS <- 3
-  seg.avg.row <- lapply(seg.idx, function(idx) mean(((idx-1) %% nr) + 1))
-  seg.avg.col <- lapply(seg.idx, function(idx) mean(((idx-1) %/% nr) + 1))
-  block.row <- findInterval(seg.avg.row, seq(1, nr, length.out=BLOCKS+1), rightmost.closed=TRUE)
-  block.col <- findInterval(seg.avg.col, seq(1, nc, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  seg.avg.row <- lapply(seg.idx, function(idx) mean(((idx-1) %% nr.img) + 1))
+  seg.avg.col <- lapply(seg.idx, function(idx) mean(((idx-1) %/% nr.img) + 1))
+  block.row <- findInterval(seg.avg.row, seq(1, nr.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  block.col <- findInterval(seg.avg.col, seq(1, nc.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
   block.code <- 10 * block.row + block.col  # Datta 48--52
   print(block.code)
   # My own location variant: distance from center, max 1.0
   sr <- unlist(seg.avg.row)
   sc <- unlist(seg.avg.col)
-  mid.r <- (nr + 1) / 2
-  mid.c <- (nc + 1) / 2
+  mid.r <- (nr.img + 1) / 2
+  mid.c <- (nc.img + 1) / 2
   max.dist <- sqrt((mid.r-1)^2 + (mid.c-1)^2)
   avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
   block.dev <- avg.dist / max.dist
@@ -522,6 +549,7 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
   #print(num.clust)
   
   photoSegmentationShow(img.luv, clustering$centers, clustered.img, conn.components)
+
   'not implemented yet'
 }
 
@@ -679,13 +707,14 @@ photoSegmentation <- function(img.rgb, num.segments=5, iter.max=10, restarts=3) 
 #img <- readImage('../examples/K5_10994.JPG')          # 58
 #img <- readImage('../examples/penguin.jpg')           # 61
 #img <- readImage('../examples/colorfulness-test.png') # 64
-#img <- readImage('../examples/dark_city.png')         # 65
+img <- readImage('../examples/dark_city.png')         # 65
 #img <- readImage('../examples/almost_black.png')      # 83
 #img <- readImage('../examples/sharp_or_blur.png')     # 83
-img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
+#img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
 #img <- readImage('../examples/pure-red.png')           # 153.7  entropy 0 b (maximum,minimum)
 #img <- readImage('../examples/grainy.jpg')           #
 #img <- readImage('../examples/datta-colorfulness-high-2.png')
+#img <- readImage('../examples/green_grass_blue_sky.png')
 
 # Mono-colored images have maximum distances from/to uniform distribution.
 # Ranging from 75.0 (bucket 43/64: light-grey) up to 153.7 (bucket 4/64: bright red).
