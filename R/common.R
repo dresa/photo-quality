@@ -59,23 +59,25 @@ kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
     # K-means++ initialization:
     centers <- integer(k) * NA  # row IDs of centers
     pr <- rep(1/n, times=n)  # uniform probabilities for sampling first center
-    for (i in 1:(k - 1)) {
-      centers[i] <- sample.int(n, size=1, prob = pr) # pick the ith center
-      # Compute distances from points to center i; use squared Euclidean (no effect):
-      distances[, i] <- rowSums((x - rep(x[centers[i], ], each=n))^2)
-
-      # Compute probability for the next sampling
-      freq <- apply(distances[, 1:i, drop=FALSE], 1, min)
-      if (sum(freq) == 0) break
-      pr <- freq / sum(freq)  # probabilities for the next sampling
+    if (k >= 2) {
+      for (i in 1:(k - 1)) {
+        centers[i] <- sample.int(n, size=1, prob = pr) # pick the ith center
+        # Compute distances from points to center i; use squared Euclidean (no effect):
+        distances[, i] <- rowSums((x - rep(x[centers[i], ], each=n))^2)
+        # Compute probability for the next sampling
+        freq <- apply(distances[, 1:i, drop=FALSE], 1, min)
+        if (sum(freq) == 0) break
+        pr <- freq / sum(freq)  # probabilities for the next sampling
+      }
     }
-    if (sum(freq) != 0) centers[k] <- sample.int(n, size=1, prob=pr)  # pick the last (kth) center
-    ## Perform k-means clusterin with the obtained centers:
+    if (k == 1 || sum(freq) != 0) centers[k] <- sample.int(n, size=1, prob=pr)  # pick the last (kth) center
+    ## Perform k-means clustering with the obtained centers:
     C <- as.integer(na.omit(centers))
-    res <- kmeans(x, x[C, ], iter.max=iter.max, nstart=1, ...)
+    init.centers <- x[C, , drop=FALSE]
+    res <- kmeans(x, init.centers, iter.max=iter.max, nstart=1, ...)
     ## Store the best result
     if (res$tot.withinss < res.best$tot.withinss) {
-      res$initial.centers <- x[C, ]
+      res$initial.centers <- init.centers
       res.best <- res
     }
   }
@@ -107,4 +109,29 @@ kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
 #kmeanspp(m, 7, iter.max=20, restarts=10)
 #e <- Sys.time()
 #print(e-s)
+
+
+## Evidence about R's kmeans bug which still existed in R 3.2.1, bur was fixed until 3.4.3.
+## When only one cluster (k=1), passing the initial cluster center (matrix with one row) fails.
+#x <- matrix(c(
+#  1,2,3,
+#  3,6,-2,
+#  2,2,2,
+#  7,6,5,
+#  20,22,27,
+#  15,16,17,
+#  30,12,20,
+#  50,40,50,
+#  29,40,45,
+#  45,50,38
+#), byrow=TRUE, ncol=3)
+#res <- kmeans(x, 3, iter.max=10, nstart=1)
+#res <- kmeans(x, x[sample(1:nrow(x), 2), ], iter.max=10, nstart=1)
+#res <- kmeans(x, 1, iter.max=10, nstart=1)
+#tryCatch(
+#  {kmeans(x, x[sample(1:nrow(x), 1), , drop=FALSE], iter.max=10, nstart=1); print('Fixed already?!')},
+#  error = function(x) {}
+#)
+## Error: number of cluster centres must lie between 1 and nrow(x)
+
 
