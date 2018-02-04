@@ -59,6 +59,7 @@ main <- function() {
   #filename <- '../examples/colorfulness-test.png'
   #filename <- '../examples/bluehue.png'
   #filename <- '../examples/pure-red.png'
+  #filename <- '../examples/flower.jpg'
 
   # Example images from the article do not behave like the authors claim:
   #filename <- '../examples/datta-colorfulness-high-1.png'
@@ -118,8 +119,9 @@ main <- function() {
   print(paste('Relative patch sizes (Datta 41--45):', paste(datta.seg$rel.patch.sizes, collapse=', ')))
   # Excluding Datta 46 & 47 measures, as they make no sense.
   print(paste('Segment position codes (Datta 48--52):', paste(datta.seg$segment.positions, collapse=', ')))
-  print(paste('Segment distances from center (Esa proxy 48--52 ):', paste(datta.seg$segment.distances, collapse=', ')))
-
+  print(paste('Segment distances from center (Esa proxy 48--52):', paste(datta.seg$segment.distances, collapse=', ')))
+  print(paste('Depth-of-field for H, S, V (Datta 53--55):', paste(dof(img.hsv), collapse=', ')))
+  
   ddc <- dispersionDominantColor(img.hsv)
 
   # Dominant direction, spread, and portion of the dominant color.

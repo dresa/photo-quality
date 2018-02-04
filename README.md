@@ -101,9 +101,9 @@ Datta R., Joshi D., Li J. and Wang J.:
 | Average central hue | 5 | 91.55 | In the image center we have green with a hint of yellow |
 | Average central saturation | 6 | 0.196 | Center is less saturated than the rest of photo |
 | Average central intensity | 7 | 0.475 | Center is brigher than edge areas |
-| Texture, hue | 10,11,12;19 | -0.0335, 0.191, 0.814; sum 0.972 |  |
-| Texture, saturation | 13,14,15;20 | 0.000313, -0.000218, 0.00266; sum 0.00275 |  |
-| Texture, value | 16,17,18;21 | -0.000278, 0.000313, 0.000764; sum 0.000799 |  |
+| Texture, hue | 10,11,12;19 | 0.00803, 0.0259, 0.0921; sum 0.126 |  |
+| Texture, saturation | 13,14,15;20 | 0.0125, 0.0316, 0.0747; sum 0.119 |  |
+| Texture, value | 16,17,18;21 | 0.00955, 0.0248, 0.0584; sum 0.0927 |  |
 | Size feature | 22 | 1256 | Modest-sized photo: sum of rows and columns |
 | Aspect ratio | 23 | 0.664, 1.51 | Classical 3:2 aspect ratio |
 | Number of large patches | 24 | 5 | Full number of large segments (max 5) |
@@ -112,6 +112,7 @@ Datta R., Joshi D., Li J. and Wang J.:
 | Relative patch sizes | 41--45 | 0.112, 0.0616, 0.0604, 0.0454, 0.0389 | None of the segments fills the photo fully |
 | Segment position codes | 48--52 | 12, 12, 21, 12, 21 |  Five largest segment centers reside on top, left-middle part of photo |
 | Segment distances from center | Esa proxy 48--52 | 0.492, 0.446, 0.443, 0.324, 0.353 | Five largest segments not in the center nor corners |
+| Only center within DOF for H, S, V | 53--55 rescaled | 0.113, -0.109, 0.109 | |
 
 ## Why?
 

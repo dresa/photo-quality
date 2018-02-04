@@ -206,6 +206,7 @@ avgCentralIntensity <- function(img.hsv) { return(avgCentral(extractHSVChannel(i
 # Datta 10--21 Texture (graininess)
 ##########
 
+# Note: function "waveletTexure" used in Datta 53--55 as well.
 waveletTexture <- function(img.channel) {
   ASSUMED_LEVELS <- 3
   levels <- min(c(ASSUMED_LEVELS, floor(log2(dim(img.channel)))))
@@ -213,27 +214,33 @@ waveletTexture <- function(img.channel) {
   # Perform 2D Discrete Wavelet Transform 
   d <- dwt.2d(img.channel, wf=wavelet.filter, J=levels)  # from 'waveslim' package
   # reconstructed <- idwt.2d(d)  # up to image dimensions that are power of two
-  # Compute Datta measures on different frequencies (levels):
-  freq.1 <- if (levels>=1) sum(d$HH1 + d$HL1 + d$LH1, na.rm=TRUE) / (3 * length(d$HH1)) else NA
-  freq.2 <- if (levels>=2) sum(d$HH2 + d$HL2 + d$LH2, na.rm=TRUE) / (3 * length(d$HH2)) else NA
-  freq.3 <- if (levels>=3) sum(d$HH3 + d$HL3 + d$LH3, na.rm=TRUE) / (3 * length(d$HH3)) else NA
-  return(c(freq.1, freq.2, freq.3))
+  return(d)
 }
+
+waveletDattaFrequencies <- function(img.channel) {
+  d <- waveletTexture(img.channel)
+  num.levels <- attr(d, 'J')
+  # Compute Datta measures on different frequencies (levels):
+  freq.1 <- if (num.levels>=1) sum(abs(d$HH1) + abs(d$HL1) + abs(d$LH1), na.rm=TRUE) / (3 * length(d$HH1)) else NA
+  freq.2 <- if (num.levels>=2) sum(abs(d$HH2) + abs(d$HL2) + abs(d$LH2), na.rm=TRUE) / (3 * length(d$HH2)) else NA
+  freq.3 <- if (num.levels>=3) sum(abs(d$HH3) + abs(d$HL3) + abs(d$LH3), na.rm=TRUE) / (3 * length(d$HH3)) else NA
+  return(c(freq.1, freq.2, freq.3))
+}  # TODO: should check if "sum of abs" is the correct way of doing this measure.
 
 texture <- function(img.hsv) {
   img.hsv[is.na(img.hsv)] <- 0  # local changes; DWT works only non-NA values
-  res <- lapply(HSV, function(channel) waveletTexture(extractHSVChannel(img.hsv, channel)))
+  res <- lapply(HSV, function(channel) waveletDattaFrequencies(extractHSVChannel(img.hsv, channel)))
   return(list(
-    hue.1=res[[HUE$idx]][1],
-    hue.2=res[[HUE$idx]][2],
-    hue.3=res[[HUE$idx]][3],
+    hue.1=res[[HUE$idx]][1] / 360,  # rescale HUE from 0--360 degrees to 0--1
+    hue.2=res[[HUE$idx]][2] / 360,
+    hue.3=res[[HUE$idx]][3] / 360,
     sat.1=res[[SATURATION$idx]][1],
     sat.2=res[[SATURATION$idx]][2],
     sat.3=res[[SATURATION$idx]][3],
     val.1=res[[VALUE$idx]][1],
     val.2=res[[VALUE$idx]][2],
     val.3=res[[VALUE$idx]][3],
-    hue.sum=sum(res[[HUE$idx]], na.rm=TRUE),
+    hue.sum=sum(res[[HUE$idx]], na.rm=TRUE) / 360,  # rescale HUE from 0--360 degrees to 0--1
     sat.sum=sum(res[[SATURATION$idx]], na.rm=TRUE),
     val.sum=sum(res[[VALUE$idx]], na.rm=TRUE)
   ))  # should we use absolute value??
@@ -579,6 +586,48 @@ regionCompositionFeatures <- function(img.rgb, num.segments=5) {
     segment.distances=block.dev    # My own proxy for Datta 48--52: distances from center
   ))
 }
+
+
+# Datta measures 53--55: Depth-of-field, DOF
+
+# I'm not quite sure how we should aggragete the different coefficients: wLH, HL, and HH.
+# Now summing them together with the rest of the values.
+waveletDattaDof <- function(img.channel) {
+  d <- waveletTexture(img.channel)  # Already defined in Datta 10
+  num.levels <- attr(d, 'J')
+  if (num.levels < 3) return(NA)
+  nr3 <- nrow(d$HH3)
+  nc3 <- ncol(d$HH3)
+  BLOCKS <- 5
+  r.idx <- round(seq(1, nr3, length.out=BLOCKS+1)) # split into BLOCKS by endpoints
+  c.idx <- round(seq(1, nc3, length.out=BLOCKS+1))
+  r.mid <- r.idx[2]:r.idx[BLOCKS]  # mid-part, exclude first and last block
+  c.mid <- c.idx[2]:c.idx[BLOCKS]
+  expectation <- length(r.mid)*length(c.mid) / (nr3 * nc3)
+  coeffSum3 <- function(ri, ci) sum(abs(d$HH3[ri,ci]) + abs(d$HL3[ri,ci]) + abs(d$LH3[ri,ci]), na.rm=TRUE)
+  
+  # Debug:
+  #m <- abs(d$HH3[1:nr3,1:nc3]) + abs(d$HL3[1:nr3,1:nc3]) + abs(d$LH3[1:nr3,1:nc3])
+  #view((m - min(m)) / (max(m)-min(m)), title='aggregated abs features')
+
+  # I decided to make the "dof.indicator" measure relative.
+  # It is the deviation from expectation, measured by expectation-units:
+  # * uniform photo gets ~0, center-dominant gets >0, edge-dominant gets <0
+  # * Maximum value is 1/(3^2/5^2) - 1 = 1.778 when all detail is in center; minimum is -1 (no detail in center).
+  dof.indicator <- (coeffSum3(r.mid, c.mid) / coeffSum3(1:nr3, 1:nc3) - expectation) / expectation
+  return(dof.indicator)
+}
+
+dof <- function(img.hsv) {
+  img.hsv[is.na(img.hsv)] <- 0  # local changes; DWT works only non-NA values
+  res <- lapply(HSV, function(channel) waveletDattaDof(extractHSVChannel(img.hsv, channel)))
+  return(list(
+    hue.dof=res[[HUE$idx]],
+    sat.dof=res[[SATURATION$idx]],
+    val.dof=res[[VALUE$idx]]
+  ))  # not quite sure how we should compute the DOF measure
+}
+
 
 
 
