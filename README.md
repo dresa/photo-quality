@@ -72,7 +72,8 @@ color to make them stand out:
 to reconstruct the original photo:
 ![Reconstructed from clusters](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-reconstructed-26-clusters.png)
 
-**Exposure and contrast**
+**Exposure and contrast:**
+
 Three simple measures for detecting  whether image has pleasing exposure and contrast:
 
 | *Measurement* | *Value* | *Explanation* |
@@ -81,7 +82,8 @@ Three simple measures for detecting  whether image has pleasing exposure and con
 | Basic RMS contrast | 0.136 | Natural luminance spread (dark vs. light, near 0.18) |
 | Basic interval contrast | 0.570 | moderate dynamics: middle 95% of photo has 57% of full dynamic range |
 
-**More measures**
+**More measures:**
+
 In Datta et. al (2006), the authors propose dozens of measures that are
 potentially related to photo quality. We have implemented most of them,
 and for the puffin image we obtained the following values.
@@ -99,17 +101,17 @@ Datta R., Joshi D., Li J. and Wang J.:
 | Average central hue | 5 | 91.55 | In the image center we have green with a hint of yellow |
 | Average central saturation | 6 | 0.196 | Center is less saturated than the rest of photo |
 | Average central intensity | 7 | 0.475 | Center is brigher than edge areas |
-| Texture, hue | 10,11,12,19 | -0.0335, 0.191, 0.814, sum 0.972 |  |
-| Texture, saturation | 13,14,15,20 | 0.000313, -0.000218, 0.00266, sum 0.00275 |  |
-| Texture, value | 16,17,18,21 | -0.000278, 0.000313, 0.000764, sum 0.000799 |  |
+| Texture, hue | 10,11,12;19 | -0.0335, 0.191, 0.814; sum 0.972 |  |
+| Texture, saturation | 13,14,15;20 | 0.000313, -0.000218, 0.00266; sum 0.00275 |  |
+| Texture, value | 16,17,18;21 | -0.000278, 0.000313, 0.000764; sum 0.000799 |  |
 | Size feature | 22 | 1256 | Modest-sized photo: sum of rows and columns |
 | Aspect ratio | 23 | 0.664, 1.51 | Classical 3:2 aspect ratio |
 | Number of large patches | 24 | 5 | Full number of large segments (max 5) |
 | Number of clusters | 25 | 26 | Photo is complex: best described by 26 clusters (random variation) |
-| Average patch HSV values | 26--40 | 272.6, 63.2, 30.1, 25.3, 224.4, 0.0586, 0.0867, 0.194, 0.137, 0.0438, 0.238, 0.276, 0.382, 0.329, 0.376 |  |
+| Average patch HSV values | 26--40 | 272.6, 63.2, 30.1, 25.3, 224.4; 0.0586, 0.0867, 0.194, 0.137, 0.0438; 0.238, 0.276, 0.382, 0.329, 0.376 |  |
 | Relative patch sizes | 41--45 | 0.112, 0.0616, 0.0604, 0.0454, 0.0389 | None of the segments fills the photo fully |
-| Segment position codes | 48--52 | 12, 12, 21, 12, 21 |  Segment centers reside on top, left-middle part of photo |
-| Segment distances from center | Esa proxy 48--52 | 0.492, 0.446, 0.443, 0.324, 0.353 | Segments not in the center nor corners |
+| Segment position codes | 48--52 | 12, 12, 21, 12, 21 |  Five largest segment centers reside on top, left-middle part of photo |
+| Segment distances from center | Esa proxy 48--52 | 0.492, 0.446, 0.443, 0.324, 0.353 | Five largest segments not in the center nor corners |
 
 ## Why?
 
