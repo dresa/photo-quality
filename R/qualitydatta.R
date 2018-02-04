@@ -728,7 +728,7 @@ regionCompositionFeatures <- function(img.rgb, num.segments=5) {
 #img <- readImage('../examples/niemi.png')             # 49  entropy 3.67 b
 #img <- readImage('../examples/no_shift.png')          # 57
 #img <- readImage('../examples/K5_10994.JPG')          # 58
-#img <- readImage('../examples/penguin.jpg')           # 61
+img <- readImage('../examples/penguin.jpg')           # 61
 #img <- readImage('../examples/colorfulness-test.png') # 64
 #img <- readImage('../examples/dark_city.png')         # 65
 #img <- readImage('../examples/almost_black.png')      # 83

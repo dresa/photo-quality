@@ -46,10 +46,75 @@ A1inv <- function(x) {
 }
 
 
+# A simplistic way of sampling a single number from vector x.
+# Faster than using sample.int -- perhaps it's designed for vectorized use.
+sample.one <- function(x, prob=NULL) {
+  if (is.null(prob)) {
+    return(x[runif(1) %/% (1 / length(x)) + 1])  # uniform distribution
+  } else {
+    stopifnot(length(prob) == length(x))
+    return(x[findInterval(runif(1), cumsum(prob/sum(prob))) + 1])
+  }
+}
+## Tests:
+#stopifnot(sample.one(2) == 2)
+#stopifnot(all(abs(table(replicate(3000, sample.one(2:4))) - 1000) < 100))
+#set.seed(1)
+#stopifnot(sample.one(seq(1.23, 2.34, 0.001)) == 1.524)
+#stopifnot(is.null(sample.one(c())))
+#tryCatch({sample.one(1:3, c(0.6,0.4)); write("error not catched: x and prob mismatch", stderr())}, error=function(x) {})
+#set.seed(1)
+#stopifnot(replicate(20, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3))) == c(3,3,4,5,3,5,5,4,4,2,3,3,4,3,5,3,5,5,3,5))
+#stopifnot(abs(table(replicate(10000, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3)))) - 1000*c(1,4,2,3)) < 200)
+#stopifnot(sample.one(0:4, prob=c(0, 1e-12, 0, 1 - 1e-12, 0)) == 3)
+
+# Kmeans++ method for center initialization.
+# The result may contain NA's if all points are in cluster centers.
+initializeCenters <- function(points, k) {
+  stopifnot(as.integer(k) == k && length(k) == 1 && k >= 1 && k <= nrow(points))
+  n <- nrow(points)
+  range <- 1:n                                # point-indices that are available as centers
+  pr <- as.numeric(rep(1/n, n))               # select first center-point by uniform sampling
+  center.point.idx <- as.integer(rep(NA, k))  # list of center-indices initially empty
+  dist.min <- rep(Inf, n)                     # infinite distances to non-existent centers
+  total.dist <- Inf
+  if (k >= 2) {
+    for (i in 1:(k-1)) {                      # add new centers one by one
+      c.idx <- sample.one(range, prob=pr)  # sample next center-index from probabilities
+      center.point.idx[i] <- c.idx            # append chosen center-index
+      c.point <- points[c.idx, ]
+      dist.to.center <- rowSums(sweep(points, 2, c.point)^2)  # squared Euclidean distance to new center
+      dist.min <- pmin(dist.min, dist.to.center)  # update minimum distances from points to any center
+      total.dist <- sum(dist.min)
+      if (total.dist == 0) break           # all points are in cluster centers
+      pr <- dist.min / total.dist          # update probabilities for next selection
+    }
+  }
+  if (total.dist != 0) center.point.idx[k] <- sample.one(range, prob=pr)  # add last center
+  return(center.point.idx)  # return a vector of point indices that refer to chosen centers
+}
+
 # K-means++ clustering algorithm
 # Inspiration from mahito-sugiyama/k-meansp2.R
 # https://gist.github.com/mahito-sugiyama/ef54a3b17fff4629f106
 kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
+  n <- nrow(x)  # number of data points
+  res.best <- list(tot.withinss=Inf)  # the best result among restarts
+  for (rerun in 1:restarts) {
+    centers.idx <- initializeCenters(x, k)
+    ## Perform k-means clustering with the obtained centers:
+    C <- as.integer(na.omit(centers.idx))
+    init.centers <- x[C, , drop=FALSE]
+    res <- kmeans(x, init.centers, iter.max=iter.max, nstart=1, ...)
+    ## Store the best result
+    if (res$tot.withinss < res.best$tot.withinss) {
+      res$initial.centers <- init.centers  # add extra field to clustering results
+      res.best <- res
+    }
+  }
+  return(res.best)
+}
+kmeansppOLD <- function(x, k, iter.max=10, restarts=1, ...) {
   n <- nrow(x)  # number of data points
   # Allocate distances: [i,j] --> distance between point x[i, ] and center x[centers[j], ]
   distances <- matrix(numeric(n*(k-1)), ncol=k-1) * NA

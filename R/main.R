@@ -10,6 +10,10 @@
 #   grid     -- viewing raster images on-screen
 #   circular -- von Mises distribution densities
 #   ggplot2  -- circular hue histogram
+#   emdist
+#   waveslim
+#   NbClust
+#   mmand
 
 source('photo.R')         # photo data structures
 source('imageio.R')       # read photo from a file
@@ -33,10 +37,10 @@ main <- function() {
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
   #filename <- '../examples/K5_10994.JPG'
   #filename <- '../examples/green_grass_blue_sky.png'
-  filename <- '../examples/dark_city.png'
+  #filename <- '../examples/dark_city.png'
   #filename <- '../examples/violetred.png'
   #filename <- '../examples/bluehue.png'
-  #filename <- '../examples/penguin.jpg'
+  filename <- '../examples/penguin.jpg'
   #filename <- '../examples/temple_set/temple-a-original.png'
   #filename <- '../examples/temple_set/temple-b-blue.png'
   #filename <- '../examples/temple_set/temple-c-cyan.png'
@@ -105,7 +109,7 @@ main <- function() {
   print(paste('Texture, hue        (Datta 10,11,12,19):', paste(tx$hue.1, tx$hue.2, tx$hue.3, paste('sum', tx$hue.sum), sep=', ')))
   print(paste('Texture, saturation (Datta 13,14,15,20):', paste(tx$sat.1, tx$sat.2, tx$sat.3, paste('sum', tx$sat.sum), sep=', ')))
   print(paste('Texture, value      (Datta 16,17,18,21):', paste(tx$val.1, tx$val.2, tx$val.3, paste('sum', tx$val.sum), sep=', ')))
-  print(paste('Size feaure (Datta 22):', paste(sizeFeature(img), collapse=', ')))
+  print(paste('Size feature (Datta 22):', paste(sizeFeature(img), collapse=', ')))
   print(paste('Aspect ratio (Datta 23):', paste(aspectRatioFeature(img), collapse=', ')))
   datta.seg <- regionCompositionFeatures(img)
   print(paste('Number of large patches (Datta 24):', datta.seg$num.large.patches))
