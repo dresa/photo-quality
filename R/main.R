@@ -40,7 +40,7 @@ main <- function() {
   #filename <- '../examples/dark_city.png'
   #filename <- '../examples/violetred.png'
   #filename <- '../examples/bluehue.png'
-  filename <- '../examples/penguin.jpg'
+  filename <- '../examples/puffin.jpg'
   #filename <- '../examples/temple_set/temple-a-original.png'
   #filename <- '../examples/temple_set/temple-b-blue.png'
   #filename <- '../examples/temple_set/temple-c-cyan.png'
