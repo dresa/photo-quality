@@ -74,6 +74,7 @@ to reconstruct the original photo:
 
 **Exposure and contrast**
 Three simple measures for detecting  whether image has pleasing exposure and contrast:
+
 | *Measurement* | *Value* | *Explanation* |
 | :------------ | :------ | :------------ |
 | Basic exposure | 0.933 | Good exposure, near middle-grey |
@@ -81,11 +82,12 @@ Three simple measures for detecting  whether image has pleasing exposure and con
 | Basic interval contrast | 0.570 | moderate dynamics: middle 95% of photo has 57% of full dynamic range |
 
 **More measures**
-In Datta et. al (2006), the authors propose dozens of measures that somehow describe photo quality.
-We have implemented most of them, and for the puffin image we obtained the following values.
+In Datta et. al (2006), the authors propose dozens of measures that are
+potentially related to photo quality. We have implemented most of them,
+and for the puffin image we obtained the following values.
 
 Datta R., Joshi D., Li J. and Wang J.:
-*Studying Aesthetics in Photographic Images Using a Computational Approach*
+*Studying Aesthetics in Photographic Images Using a Computational Approach*, 2006.
 
 | *Measurement* | *Datta variant* | *Value* | *Explanation* |
 | :------------ | :-------- | :------ | :------------ |
