@@ -10,6 +10,10 @@
 #   grid     -- viewing raster images on-screen
 #   circular -- von Mises distribution densities
 #   ggplot2  -- circular hue histogram
+#   emdist
+#   waveslim
+#   NbClust
+#   mmand
 
 source('photo.R')         # photo data structures
 source('imageio.R')       # read photo from a file
@@ -26,7 +30,7 @@ source('qualitydatta.R')  # quality measurements by Datta et al
 main <- function() {
   do.view <- FALSE #TRUE  #FALSE
   print('=== START ===')
-  filename <- '../examples/small_grid.png'
+  #filename <- '../examples/small_grid.png'
   #filename <- '../examples/blue_shift.png'
   #filename <- '../examples/no_shift.png'
   #filename <- '../examples/niemi.png'
@@ -36,7 +40,7 @@ main <- function() {
   #filename <- '../examples/dark_city.png'
   #filename <- '../examples/violetred.png'
   #filename <- '../examples/bluehue.png'
-  #filename <- '../examples/penguin.jpg'
+  filename <- '../examples/penguin.jpg'
   #filename <- '../examples/temple_set/temple-a-original.png'
   #filename <- '../examples/temple_set/temple-b-blue.png'
   #filename <- '../examples/temple_set/temple-c-cyan.png'
@@ -50,7 +54,19 @@ main <- function() {
   #filename <- '../examples/temple_set/temple-k-gaussianblur.png'
   #filename <- '../examples/almost_black.png'
   #filename <- '../examples/grainy.jpg'
-  
+  #filename <- '../examples/uniform-buckets.png'
+  #filename <- '../examples/many_colors.png'
+  #filename <- '../examples/colorfulness-test.png'
+  #filename <- '../examples/bluehue.png'
+  #filename <- '../examples/pure-red.png'
+
+  # Example images from the article do not behave like the authors claim:
+  #filename <- '../examples/datta-colorfulness-high-1.png'
+  #filename <- '../examples/datta-colorfulness-high-2.png'
+  #filename <- '../examples/datta-colorfulness-low-1.png'
+  #filename <- '../examples/datta-colorfulness-low-2.png'
+
+
   img <- readImage(filename)
   img.hsv <- toHSV(img)
   print(paste('Processing image:', filename))
@@ -93,8 +109,17 @@ main <- function() {
   print(paste('Texture, hue        (Datta 10,11,12,19):', paste(tx$hue.1, tx$hue.2, tx$hue.3, paste('sum', tx$hue.sum), sep=', ')))
   print(paste('Texture, saturation (Datta 13,14,15,20):', paste(tx$sat.1, tx$sat.2, tx$sat.3, paste('sum', tx$sat.sum), sep=', ')))
   print(paste('Texture, value      (Datta 16,17,18,21):', paste(tx$val.1, tx$val.2, tx$val.3, paste('sum', tx$val.sum), sep=', ')))
-  print(paste('Size feaure (Datta 22):', paste(sizeFeature(img), collapse=', ')))
+  print(paste('Size feature (Datta 22):', paste(sizeFeature(img), collapse=', ')))
   print(paste('Aspect ratio (Datta 23):', paste(aspectRatioFeature(img), collapse=', ')))
+  datta.seg <- regionCompositionFeatures(img)
+  print(paste('Number of large patches (Datta 24):', datta.seg$num.large.patches))
+  print(paste('Number of clusters (Datta 25):', datta.seg$num.clusters))
+  print(paste('Average patch HSV values (Datta 26--40):', paste(datta.seg$avg.patch.hsv, collapse=', ')))
+  print(paste('Relative patch sizes (Datta 41--45):', paste(datta.seg$rel.patch.sizes, collapse=', ')))
+  # Excluding Datta 46 & 47 measures, as they make no sense.
+  print(paste('Segment position codes (Datta 48--52):', paste(datta.seg$segment.positions, collapse=', ')))
+  print(paste('Segment distances from center (Esa proxy 48--52 ):', paste(datta.seg$segment.distances, collapse=', ')))
+
   ddc <- dispersionDominantColor(img.hsv)
 
   # Dominant direction, spread, and portion of the dominant color.
@@ -112,6 +137,16 @@ main <- function() {
   if (do.view) view(toBrightRGB(img), title='Pure hues')
   print('===  END  ===')
 }
-#Rprof(filename="Rprof.out", append=FALSE, line.profiling=TRUE)
+
+##
+## LAUNCH MAIN PROGRAM
+##
+
+#Rprof(filename="Rprof.out", append=FALSE, line.profiling=TRUE, interval=0.01)  # Start profiling
+
 main()
+
+#Rprof(NULL)  # End profiling
+
+# Use summaryRprof('Rprof.out', lines='show') to view the profiling results.
 

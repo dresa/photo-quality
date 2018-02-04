@@ -55,7 +55,7 @@ from an incorrect color temperature.
 * In the blurriness image the background of the photo appears as highly blurry (white):
 ![Blurriness](http://www.elisanet.fi/esajakatja/valokuvat/pq/penguin-blurriness.png)
 
-##Why?
+## Why?
 
 Imagine that you could give a set of photos to someone, who then orders them and picks the best photos for you. This is possible with modern image analysis and machine learning techniques. I'm talking about assessing the quality of photographs -- automatically.
 
@@ -76,8 +76,10 @@ The project leans towards the scientific research on no-reference image quality.
 5. Learn and improve on what we have.
 
 
-This software has been written in R version 3.2.1. It serves as a
+This software has been written in R version 3.4.3. It serves as a
 prototype for photo quality assessment, and as a library of working implementations.
 Keeping a future production version in mind, the code contains a lot of details
 that support implementation work in lower-level languages.
 
+In current code, we use the following R packages (emdist) along with their dependencies:
+emdist, waveslim, NbClust, jpeg, png, ggplot2, circular and mmand.
