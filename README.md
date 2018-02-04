@@ -1,12 +1,12 @@
 # photo-quality
-Measure the quality of photographs, based on cutting-edge methodology.
+Measure the aesthetic quality of photographs, based on cutting-edge methodology.
 
-## Example: penguin photo (by andreas612)
+## Example: puffin photo (by andreas612)
 
 **Original 755 x 501 JPG photo:**
 
-* Original penguin photo, which I find quite pleasing.
-![Original](http://www.elisanet.fi/esajakatja/valokuvat/pq/penguin.jpg)
+* Original puffin photo, which I find quite pleasing.
+![Original](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin.jpg)
 
 * Here are the blur-related  measurements we have for the photo.
 The blur measurements show that the photo has good quality. In practice the photos
@@ -27,13 +27,13 @@ one saves us the trouble of pixel-peeping the minor differences between candidat
 * The image below shows the hues in the photo. The block-like structure probably originates from the JPEG compression.
 In the HSV color space the variation within those blocks is fully conveyed by the Saturation and
 Value dimensions. Note that colors that are almost white or black are quite insensitive to hue.
-![Hues](http://www.elisanet.fi/esajakatja/valokuvat/pq/penguin-hue.png)
+![Hues](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-hue.png)
 
-* Let's look at the hue amounts in a polar coordinates.
+* Let's have a look at the hue amounts in a polar coordinates.
 The image shows that the most dominant hues are lime green and orange.
 A best-fit von Mises distribution (black line) is used to identify dominating hues.
 
-![Hue Histogram](http://www.elisanet.fi/esajakatja/valokuvat/pq/penguin-hue-histogram.png)
+![Hue Histogram](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-hue-histogram.png)
 
 
 | *Hue Measurements* | *Value* | *Explanation* |
@@ -45,25 +45,55 @@ A best-fit von Mises distribution (black line) is used to identify dominating hu
 | Color dispersion(custom.ds) | 0.970699 | pixels with dominant hues are almost as scattered as any two pixels |
 
 Detecting dominant colors may help to decide whether a photo has incorrect color temperature
-or other type of color cast. By measuring the scatter, we are able to distinguish natural colors, such as blue sky and green forest,
-from an incorrect color temperature.
+or other type of color cast. By measuring the scatter, we are able to distinguish
+natural colors, such as blue sky and green forest, from an incorrect color temperature.
 
 **Sharpness and blurriness:**
-* In some sense sharpness and blurriness are the opposites of each other. A photograph may very well contain both, ands still be of a high quality.
+* In some sense sharpness and blurriness are the opposites of each other.
+A photograph may very well contain both, and still be of a high quality.
 * In the sharpness image the sharpest pixels (white) are those at the strong edges:
-![Sharpness](http://www.elisanet.fi/esajakatja/valokuvat/pq/penguin-sharpness.png)
+![Sharpness](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-sharpness.png)
 * In the blurriness image the background of the photo appears as highly blurry (white):
-![Blurriness](http://www.elisanet.fi/esajakatja/valokuvat/pq/penguin-blurriness.png)
+![Blurriness](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-blurriness.png)
+
+**Image segmentation:**
+* Image segmentation offers a way to split the image so that objects
+and coherent areas can be detected. In many photos, we have some areas are filled with more
+or less the same color, while the areas may differ from each other. By detecting the segments, we
+simultaneously split the image into distinguishable parts.
+* In the following image we have decided that the puffin photo is naturally split into 26 clusters,
+each of which corresponds to a single color. Using these clustered colors, the image has 20212 connected
+color segments, especially below in the grass area. Here they are, each shown with a random
+color to make them stand out:
+![Clustered segments](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-connected-segments-20212-from-26-clusters.png)
+* In the connected segments image, we show ten largest connected components against a black background:
+![Largest segments](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-largest-connected-components-10.png)
+* In the reconstructed image we have used only 26 clusters, that is colors,
+to reconstructed the original photo:
+![Reconstructed from clusters](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-reconstructed-26-clusters.png)
 
 ## Why?
 
-Imagine that you could give a set of photos to someone, who then orders them and picks the best photos for you. This is possible with modern image analysis and machine learning techniques. I'm talking about assessing the quality of photographs -- automatically.
+Imagine that you could give a set of photos to someone, who then orders them and picks the best
+photos for you. This is possible with modern image analysis and machine learning techniques.
+I'm talking about assessing the aesthetic quality of photographs -- automatically.
 
-It's tedious to manage a large collection of photographs. An avid photographer may easily end up having dozens of seemingly identical photos. Unfortunately, none of the applications from Adobe, Apple, or others seem to address this issue. It's time to ease the pain of photo management and spend the time taking photos instead.
+It's tedious to manage a large collection of photographs. An avid photographer may easily end
+up having dozens of seemingly identical photos. Unfortunately, none of the applications from
+Adobe, Apple, or others seem to address this issue. It's time to ease the pain of photo
+management and spend the time taking photos instead.
 
-The question of photo quality is subjective to certain extent. However, most photos are taken by ordinary people who follow general rules as it comes to photo quality. In this domain, we want to see excellent sharpness, little motion blur, *golden rule* compositions, no compression artefacts (think of JPEG), faces with their eyes open, etc.
+The question of photo quality is subjective to certain extent. However, most photos are taken
+by ordinary people who follow general rules as it comes to photo quality. In this domain,
+we want to see excellent sharpness, little motion blur, *golden rule* compositions, no compression
+artefacts (think of JPEG), people's face that have their eyes open, etc.
 
-In fact many photo features, both technical and aesthetic in nature, can be modeled and measured. Indeed, the field of measuring image quality is a well-known research topic. Most of the research, however, has concentrated on measuring quality when the true image is known. But in photography, all we have is a single photo. This fairly new field of study is called *no-reference image quality assessment*, or *NR* for short.
+In fact many photo features, both technical and aesthetic in nature, can be modeled
+and measured. Indeed, the field of measuring image quality is a well-known research topic.
+Most of the research, however, has concentrated on measuring quality when the true image
+is known. But in photography, all we have is a single photo. This fairly new field of
+study is called *no-reference image quality assessment*, or *NR* for short, and it is this field
+where we wish to make a contribution.
 
 ## Future roadmap
 
@@ -81,5 +111,5 @@ prototype for photo quality assessment, and as a library of working implementati
 Keeping a future production version in mind, the code contains a lot of details
 that support implementation work in lower-level languages.
 
-In current code, we use the following R packages (emdist) along with their dependencies:
+In current code, we use the following R packages along with their dependencies:
 emdist, waveslim, NbClust, jpeg, png, ggplot2, circular and mmand.
