@@ -19,6 +19,7 @@ source('imageio.R')
 source('common.R')  # k-means++
 source('viewer.R')
 source('mdl.R')
+source('convexity.R')
 
 # Datta 1: Average pixel intensity
 ##########
@@ -518,7 +519,7 @@ photoSegmentation <- function(img.rgb) {
   #print(conn.components)
 
   # When debugging, enable the folloing line. Debug by viewing images:
-  #photoSegmentationShow(img.luv, k.centers, clustered.img, conn.components)
+  photoSegmentationShow(img.luv, k.centers, clustered.img, conn.components)
 
   return(
     list(
@@ -533,8 +534,70 @@ photoSegmentation <- function(img.rgb) {
 }
 
 
+# Datta measure 56, "shape convexity"
+shapeConvexity <- function(conn.components, img.rgb) {
+  nr <- nrow(conn.components)
+  nc <- ncol(conn.components)
+  tab <- tabulate(conn.components)
+  names(tab) <- 1:length(tab)
+  ordered.components <- rev(sort(tab))
+  threshold <- nr*nc/200
+  comps <- ordered.components[ordered.components >= threshold]
+  convex.shapes <- list()
+  for (idx in 1:length(comps)) {
+    matches <- conn.components == names(comps[idx])
+    bounding.rows <- which(rowSums(matches) > 0)
+    bounding.cols <- which(colSums(matches) > 0)
+    shape.rectangular <- matches[bounding.rows, bounding.cols, drop=FALSE]
+    print(paste('Shape rectangular dims', dim(shape.rectangular)))
+    # convert pixels into points in Euclidean space (use pixel centers)
+    sr <- nrow(shape.rectangular)
+    sc <- ncol(shape.rectangular)
+    x.mask <- matrix(rep(1:sc, each=sr), nrow=sr)
+    y.mask <- matrix(rep(-1:-sr, sc), nrow=sr)
+    x <- x.mask[shape.rectangular]
+    y <- y.mask[shape.rectangular]
+    ch <- findConvexHull2D(x, y)
+    inside.ch <- insideConvexHull2D(x.mask, y.mask, x[ch], y[ch])
+    shape.size <- as.integer(comps[idx])
+    #print(paste('Inside ratio: ', shape.size, sum(inside.ch), shape.size/sum(inside.ch)))
+    #print(paste('Bounding box corner', bounding.rows[1], bounding.cols[1]))
+    hull.avg.col <- unlist(lapply(
+      list(RED,GREEN,BLUE),
+      function(channel) mean(extractRGBChannel(img.rgb, channel)[bounding.rows, bounding.cols][shape.rectangular])
+    ))
+    convex.shapes[[idx]] <- list(
+      hull.x=x[ch]+bounding.cols[1]-1,
+      hull.y=-y[ch]+bounding.rows[1]-1,
+      hull.col=do.call(rgb, as.list(hull.avg.col)),
+      hull.compsize=as.integer(comps[idx]),
+      hull.coverage=as.integer(comps[idx])/sum(inside.ch)
+    )
+  }
+  DO_VIEW_CONVEX <- TRUE
+  if (DO_VIEW_CONVEX) {
+    view(conn.components/max(conn.components), title='Convex shapes')  # FIXME: refactor or remove
+    plot(c(), xlim=c(1,nc), ylim=c(1,nr), main='Convex shapes')
+    for (idx in 1:length(convex.shapes)) {
+      print(paste('Shape', idx))
+      shape <- convex.shapes[[idx]]
+      s.x <- c(shape$hull.x, shape$hull.x[1])
+      s.y <- nr + 1 - c(shape$hull.y, shape$hull.y[1])
+      lines(s.x, s.y, col=shape$hull.col, type='l')
+      transparent.col <- do.call(rgb, as.list(c(col2rgb(shape$hull.col),220)/255))
+      polygon(s.x, s.y, border=shape$hull.col, col=transparent.col)
+    }
+  }
+  CONVEX_THRESHOLD <- 0.8
+  incl.mask <- unlist(lapply(convex.shapes, function(x) x$hull.coverage >= CONVEX_THRESHOLD))
+  shape.convexity.feature <- sum(as.integer(comps[incl.mask])) / (nr*nc)
+  return(shape.convexity.feature)
+}
+
+
 # Datta measures 24--52 based on image segmentation (except 46 & 47)
-regionCompositionFeatures <- function(img.rgb, num.segments=5) {
+## Datta measure 56, "shape convexity", included
+regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.rgb, num.segments=5) {
   nr.img <- nrow(img.rgb)
   nc.img <- ncol(img.rgb)
   seg <- photoSegmentation(img.rgb)
@@ -575,6 +638,8 @@ regionCompositionFeatures <- function(img.rgb, num.segments=5) {
   avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
   block.dev <- avg.dist / max.dist  # Esa's proxy to Datta 48--52
   #print(block.dev)  # In addition to Datta 48--52
+
+  convexity <- shapeConvexity(conn.components, img.rgb)
   
   return(list(
     num.large.patches=num.threshold.comps, # Datta 24
@@ -583,7 +648,8 @@ regionCompositionFeatures <- function(img.rgb, num.segments=5) {
     rel.patch.sizes=rel.sizes,      # Datta 41--45
                                    # excluding Datta 46 & 47
     segment.positions=block.code,  # Datta 48--52
-    segment.distances=block.dev    # My own proxy for Datta 48--52: distances from center
+    segment.distances=block.dev,   # My own proxy for Datta 48--52: distances from center
+    shape.convexity=convexity      # Datta 56
   ))
 }
 
