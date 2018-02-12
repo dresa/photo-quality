@@ -534,6 +534,30 @@ photoSegmentation <- function(img.rgb) {
 }
 
 
+# Return the bounding rectangular for each id. That is, the minimum
+# rectangular that contains all given id values within matrix m.
+# Assuming the IDs are 1, 2, 3, ..., max.id.
+getBoundingBoxes <- function(m, max.id) {
+  first.row <- integer(length=max.id) * NA
+  last.row <- integer(length=max.id) * NA
+  first.col <- integer(length=max.id) * NA
+  last.col <- integer(length=max.id) * NA
+  for (r in 1:nrow(m)) {
+    found.ids <- unique(m[r, ])
+    upd.mask <- is.na(first.row[found.ids])
+    first.row[found.ids[upd.mask]] <- r
+    last.row[found.ids] <- r
+  }
+  for (col in 1:ncol(m)) {
+    found.ids <- unique(m[ , col])
+    upd.mask <- is.na(first.col[found.ids])
+    first.col[found.ids[upd.mask]] <- col
+    last.col[found.ids] <- col
+  }
+  df <- data.frame(FirstRow=first.row, LastRow=last.row, FirstColumn=first.col, LastColumn=last.col)
+  return(df)
+}
+
 # Datta measure 56, "shape convexity"
 shapeConvexity <- function(conn.components, img.rgb) {
   nr <- nrow(conn.components)
@@ -544,12 +568,14 @@ shapeConvexity <- function(conn.components, img.rgb) {
   threshold <- nr*nc/200
   comps <- ordered.components[ordered.components >= threshold]
   convex.shapes <- list()
+  bound.boxes <- getBoundingBoxes(conn.components, length(tab))
   for (idx in 1:length(comps)) {
-    matches <- conn.components == names(comps[idx])
-    bounding.rows <- which(rowSums(matches) > 0)
-    bounding.cols <- which(colSums(matches) > 0)
-    shape.rectangular <- matches[bounding.rows, bounding.cols, drop=FALSE]
-    print(paste('Shape rectangular dims', dim(shape.rectangular)))
+    id <- as.integer(names(comps[idx]))
+    box <- bound.boxes[id, ]
+    bounding.rows <- box$FirstRow:box$LastRow
+    bounding.cols <- box$FirstColumn:box$LastColumn
+    rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
+    shape.rectangular <- rectangular == id
     # convert pixels into points in Euclidean space (use pixel centers)
     sr <- nrow(shape.rectangular)
     sc <- ncol(shape.rectangular)
@@ -561,7 +587,7 @@ shapeConvexity <- function(conn.components, img.rgb) {
     inside.ch <- insideConvexHull2D(x.mask, y.mask, x[ch], y[ch])
     shape.size <- as.integer(comps[idx])
     #print(paste('Inside ratio: ', shape.size, sum(inside.ch), shape.size/sum(inside.ch)))
-    #print(paste('Bounding box corner', bounding.rows[1], bounding.cols[1]))
+    #print(paste('Bounding box corner', box$FirstRow, box$FirstColumn))
     hull.avg.col <- unlist(lapply(
       list(RED,GREEN,BLUE),
       function(channel) mean(extractRGBChannel(img.rgb, channel)[bounding.rows, bounding.cols][shape.rectangular])
@@ -579,7 +605,6 @@ shapeConvexity <- function(conn.components, img.rgb) {
     view(conn.components/max(conn.components), title='Convex shapes')  # FIXME: refactor or remove
     plot(c(), xlim=c(1,nc), ylim=c(1,nr), main='Convex shapes')
     for (idx in 1:length(convex.shapes)) {
-      print(paste('Shape', idx))
       shape <- convex.shapes[[idx]]
       s.x <- c(shape$hull.x, shape$hull.x[1])
       s.y <- nr + 1 - c(shape$hull.y, shape$hull.y[1])
@@ -605,7 +630,9 @@ regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.r
   k <- seg$optimal.k
 
   # Compute Datta measures:
-  comp.sizes <- rev(sort(table(conn.components)))
+  freqs <- tabulate(conn.components)  # "tabulate" is much faster than "table"
+  names(freqs) <- 1:length(freqs)
+  comp.sizes <- rev(sort(freqs))
   largest <- head(comp.sizes, num.segments)
   largest.ids <- as.integer(names(largest))
   num.threshold.comps <- sum(largest / (nr.img * nc.img) > 0.01)  # Datta feature 24
