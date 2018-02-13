@@ -37,10 +37,10 @@ main <- function() {
   #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
   #filename <- '../examples/K5_10994.JPG'
   #filename <- '../examples/green_grass_blue_sky.png'
-  #filename <- '../examples/dark_city.png'
+  filename <- '../examples/dark_city.png'
   #filename <- '../examples/violetred.png'
   #filename <- '../examples/bluehue.png'
-  filename <- '../examples/puffin.jpg'
+  #filename <- '../examples/puffin.jpg'
   #filename <- '../examples/temple_set/temple-a-original.png'
   #filename <- '../examples/temple_set/temple-b-blue.png'
   #filename <- '../examples/temple_set/temple-c-cyan.png'
@@ -146,7 +146,7 @@ main <- function() {
 ##
 
 #Rprof(filename="Rprof.out", append=FALSE, line.profiling=TRUE, interval=0.01)  # Start profiling
-
+set.seed(1)
 main()
 
 #Rprof(NULL)  # End profiling
