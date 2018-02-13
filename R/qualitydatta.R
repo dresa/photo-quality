@@ -620,6 +620,31 @@ shapeConvexity <- function(conn.components, img.rgb) {
 }
 
 
+segmentBlockLocations <- function(conn.components, largest.ids) {
+  seg.idx <- lapply(largest.ids, function(x) which(conn.components == x))
+  names(seg.idx) <- largest.ids
+  BLOCKS <- 3
+  nr <- nrow(conn.components)
+  nc <- ncol(conn.components)
+  seg.avg.row <- lapply(seg.idx, function(idx) mean(((idx-1) %% nr) + 1))
+  seg.avg.col <- lapply(seg.idx, function(idx) mean(((idx-1) %/% nr) + 1))
+  block.row <- findInterval(seg.avg.row, seq(1, nr, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  block.col <- findInterval(seg.avg.col, seq(1, nc, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  block.code <- 10 * block.row + block.col  # Datta 48--52
+
+  # My own location variant: distance from center, max 1.0
+  sr <- unlist(seg.avg.row)
+  sc <- unlist(seg.avg.col)
+  mid.r <- (nr + 1) / 2
+  mid.c <- (nc + 1) / 2
+  max.dist <- sqrt((mid.r-1)^2 + (mid.c-1)^2)
+  avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
+  block.deviation <- avg.dist / max.dist  # Esa's proxy to Datta 48--52
+
+  return(list(codes=block.code, distances=block.deviation))
+}
+
+
 # Datta measures 24--52 based on image segmentation (except 46 & 47)
 ## Datta measure 56, "shape convexity", included
 regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.rgb, num.segments=5) {
@@ -643,40 +668,24 @@ regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.r
   #print(largest.hsv.avg)  # Datta 26--40
   rel.sizes <- as.numeric(largest / (nr.img * nc.img)) # Datta 41--45
   
-  ## Skipping these two measures, as their definition seems unclear and non-intuitive.
+  ## Skipping these two measures, as their definitions seem unclear and non-intuitive.
   #avg.col.spread <-  # Datta 46
   #avg.col.complmentary <-   # Datta 47
   
-  seg.idx <- lapply(largest.ids, function(x) which(conn.components == x))
-  names(seg.idx) <- largest.ids
-  BLOCKS <- 3
-  seg.avg.row <- lapply(seg.idx, function(idx) mean(((idx-1) %% nr.img) + 1))
-  seg.avg.col <- lapply(seg.idx, function(idx) mean(((idx-1) %/% nr.img) + 1))
-  block.row <- findInterval(seg.avg.row, seq(1, nr.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
-  block.col <- findInterval(seg.avg.col, seq(1, nc.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
-  block.code <- 10 * block.row + block.col  # Datta 48--52
-  #print(block.code)
-  # My own location variant: distance from center, max 1.0
-  sr <- unlist(seg.avg.row)
-  sc <- unlist(seg.avg.col)
-  mid.r <- (nr.img + 1) / 2
-  mid.c <- (nc.img + 1) / 2
-  max.dist <- sqrt((mid.r-1)^2 + (mid.c-1)^2)
-  avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
-  block.dev <- avg.dist / max.dist  # Esa's proxy to Datta 48--52
-  #print(block.dev)  # In addition to Datta 48--52
+  # Datta 48--52 and Esa's proxy measures (distances from center)
+  locations <- segmentBlockLocations(conn.components, largest.ids)  
 
-  convexity <- shapeConvexity(conn.components, img.rgb)
+  convexity <- shapeConvexity(conn.components, img.rgb)  # Datta 56
   
   return(list(
-    num.large.patches=num.threshold.comps, # Datta 24
-    num.clusters=num.clusters,     # Datta 25
-    avg.patch.hsv=largest.hsv.avg, # Datta 26--40
-    rel.patch.sizes=rel.sizes,      # Datta 41--45
-                                   # excluding Datta 46 & 47
-    segment.positions=block.code,  # Datta 48--52
-    segment.distances=block.dev,   # My own proxy for Datta 48--52: distances from center
-    shape.convexity=convexity      # Datta 56
+    num.large.patches=num.threshold.comps,  # Datta 24
+    num.clusters=num.clusters,  # Datta 25
+    avg.patch.hsv=largest.hsv.avg,  # Datta 26--40
+    rel.patch.sizes=rel.sizes,  # Datta 41--45
+      # excluding Datta 46 & 47
+    segment.positions=locations$codes,  # Datta 48--52
+    segment.distances=locations$distances,  # My own proxy for Datta 48--52: distances from center
+    shape.convexity=convexity  # Datta 56
   ))
 }
 
