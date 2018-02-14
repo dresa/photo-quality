@@ -625,7 +625,7 @@ shapeConvexity <- function(conn.components, img.rgb) {
     bounding.cols <- box$FirstColumn:box$LastColumn
     rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
     shape.rectangular <- rectangular == id
-    subimg.rgb <- img.rgb[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn, ]
+    subimg.rgb <- img.rgb[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn, , drop=FALSE]
     convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, subimg.rgb, box$FirstRow, box$FirstColumn)
   }
   DO_VIEW_CONVEX <- TRUE
