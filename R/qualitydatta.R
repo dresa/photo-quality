@@ -554,7 +554,12 @@ getBoundingBoxes <- function(m, max.id) {
     first.col[found.ids[upd.mask]] <- col
     last.col[found.ids] <- col
   }
-  df <- data.frame(FirstRow=first.row, LastRow=last.row, FirstColumn=first.col, LastColumn=last.col)
+  df <- data.frame(
+    FirstRow=first.row,
+    LastRow=last.row,
+    FirstColumn=first.col,
+    LastColumn=last.col
+  )
   return(df)
 }
 
@@ -575,16 +580,12 @@ plotConvexShapes <- function(dims, convex.shapes) {
 }
 
 
-extractConvexShape <- function(conn.components, img.rgb, id, box) {
-  bounding.rows <- box$FirstRow:box$LastRow
-  bounding.cols <- box$FirstColumn:box$LastColumn
-  rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
-  shape.rectangular <- rectangular == id
-  # convert pixels into points in Euclidean space (use pixel centers)
+extractConvexShape <- function(shape.rectangular, img.rgb, id, box) {
   sr <- nrow(shape.rectangular)
   sc <- ncol(shape.rectangular)
   x.mask <- matrix(rep(1:sc, each=sr), nrow=sr)
   y.mask <- matrix(rep(-1:-sr, sc), nrow=sr)
+  # convert pixels into points in Euclidean space (use pixel centers)
   x <- x.mask[shape.rectangular]
   y <- y.mask[shape.rectangular]
   ch <- findConvexHull2D(x, y)
@@ -594,11 +595,11 @@ extractConvexShape <- function(conn.components, img.rgb, id, box) {
   #print(paste('Bounding box corner', box$FirstRow, box$FirstColumn))
   hull.avg.col <- unlist(lapply(
     list(RED,GREEN,BLUE),
-    function(channel) mean(extractRGBChannel(img.rgb, channel)[bounding.rows, bounding.cols][shape.rectangular])
+    function(channel) mean(extractRGBChannel(img.rgb, channel)[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn][shape.rectangular])
   ))
   return(list(
-    hull.x=x[ch]+bounding.cols[1]-1,
-    hull.y=-y[ch]+bounding.rows[1]-1,
+    hull.x=x[ch]+box$FirstColumn-1,
+    hull.y=-y[ch]+box$FirstRow-1,
     hull.col=do.call(rgb, as.list(hull.avg.col)),
     hull.compsize=shape.size,
     hull.coverage=shape.size/sum(inside.ch)
@@ -619,7 +620,11 @@ shapeConvexity <- function(conn.components, img.rgb) {
   for (idx in 1:length(comps)) {
     id <- as.integer(names(comps[idx]))
     box <- bound.boxes[id, ]
-    convex.shapes[[idx]] <- extractConvexShape(conn.components, img.rgb, id, box)
+    bounding.rows <- box$FirstRow:box$LastRow
+    bounding.cols <- box$FirstColumn:box$LastColumn
+    rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
+    shape.rectangular <- rectangular == id
+    convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, img.rgb, id, box)
   }
   DO_VIEW_CONVEX <- TRUE
   if (DO_VIEW_CONVEX) { plotConvexShapes(dim(img.rgb), convex.shapes) }
