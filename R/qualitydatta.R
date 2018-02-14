@@ -298,11 +298,28 @@ photoSegmentationClustering <- function(x, k, iter.max, restarts) {
 }
 
 photoSegmentationMappings <- function(pixels, centers, nr) {
-  C <- t(centers)
-  chooseCluster <- function(p) which.min(colSums((C - p)^2))
-  mapping <- apply(pixels, 1, chooseCluster)
-  return(matrix(unlist(mapping), nrow=nr))
+  # For each center, find closest pixels iteratively.
+  # Number of centers should be small, < 100, so for loop should be fast enough.
+  pxs <- t(pixels)
+  min.distance <- rep(Inf, nrow(pixels))  # min dist to a center this far
+  min.mapping <- rep(NA, nrow(pixels))  # closest center this far
+  for (c.idx in 1:nrow(centers)) {  # check one center at a time
+    d <- colSums((pxs - centers[c.idx, ])^2)  # distances to this center
+    upd <- d < min.distance  # new closest center found for pixels?
+    min.distance[upd] <- d[upd]
+    min.mapping[upd] <- c.idx
+  }
+  # return center mappings in original matrix dimensions
+  return(matrix(unlist(min.mapping), nrow=nr))
 }
+
+# Slower (by x20), but elegant version. A call for each pixel is too much!
+#photoSegmentationMappings <- function(pixels, centers, nr) {
+#  C <- t(centers)
+#  chooseCluster <- function(p) which.min(colSums((C - p)^2))
+#  mapping <- apply(pixels, 1, chooseCluster)
+#  return(matrix(unlist(mapping), nrow=nr))
+#}
 
 photoSegmentationReconstruct <- function(centers, map, num.rows) {
   return(t(sapply(map, function(x) centers[x, ])))
