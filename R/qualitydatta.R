@@ -19,6 +19,7 @@ source('imageio.R')
 source('common.R')  # k-means++
 source('viewer.R')
 source('mdl.R')
+source('convexity.R')
 
 # Datta 1: Average pixel intensity
 ##########
@@ -533,8 +534,137 @@ photoSegmentation <- function(img.rgb) {
 }
 
 
+# Return the bounding rectangular for each id. That is, the minimum
+# rectangular that contains all given id values within matrix m.
+# Assuming the IDs are 1, 2, 3, ..., max.id.
+getBoundingBoxes <- function(m, max.id) {
+  first.row <- integer(length=max.id) * NA
+  last.row <- integer(length=max.id) * NA
+  first.col <- integer(length=max.id) * NA
+  last.col <- integer(length=max.id) * NA
+  for (r in 1:nrow(m)) {
+    found.ids <- unique(m[r, ])
+    upd.mask <- is.na(first.row[found.ids])
+    first.row[found.ids[upd.mask]] <- r
+    last.row[found.ids] <- r
+  }
+  for (col in 1:ncol(m)) {
+    found.ids <- unique(m[ , col])
+    upd.mask <- is.na(first.col[found.ids])
+    first.col[found.ids[upd.mask]] <- col
+    last.col[found.ids] <- col
+  }
+  df <- data.frame(
+    FirstRow=first.row,
+    LastRow=last.row,
+    FirstColumn=first.col,
+    LastColumn=last.col
+  )
+  return(df)
+}
+
+
+# Visualize convex shapes found in the photo
+plotConvexShapes <- function(dims, convex.shapes) {
+  nr <- dims[1]
+  nc <- dims[2]
+  plot(c(), xlim=c(1,nc), ylim=c(1,nr), main='Convex shapes')
+  for (idx in 1:length(convex.shapes)) {
+    shape <- convex.shapes[[idx]]
+    s.x <- c(shape$hull.x, shape$hull.x[1])
+    s.y <- nr + 1 - c(shape$hull.y, shape$hull.y[1])
+    lines(s.x, s.y, col=shape$hull.color, type='l')
+    transparent.color <- do.call(rgb, as.list(c(col2rgb(shape$hull.color),170)/255))
+    polygon(s.x, s.y, border=shape$hull.color, col=transparent.color)
+  }
+}
+
+
+# Given a subimage of a connected shape and associated RGB values,
+# return the conver hull information, possible adjusted by anchor point
+# that is the top-left point in the subimage.
+extractConvexShape <- function(shape.rectangular, subimg.rgb, anchor.row=1, anchor.col=1) {
+  sr <- nrow(shape.rectangular)
+  sc <- ncol(shape.rectangular)
+  x.mask <- matrix(rep(1:sc, each=sr), nrow=sr)
+  y.mask <- matrix(rep(-1:-sr, sc), nrow=sr)
+  # convert pixels into points in Euclidean space (use pixel centers)
+  x <- x.mask[shape.rectangular]
+  y <- y.mask[shape.rectangular]
+  ch <- findConvexHull2D(x, y)
+  inside.ch <- insideConvexHull2D(x.mask, y.mask, x[ch], y[ch])
+  shape.size <- sum(shape.rectangular)
+  hull.avg.col <- unlist(lapply(
+    list(RED,GREEN,BLUE),
+    function(channel) mean(extractRGBChannel(subimg.rgb, channel)[shape.rectangular])
+  ))
+  return(list(
+    hull.x= x[ch] + anchor.col - 1,
+    hull.y= -y[ch] + anchor.row - 1,
+    hull.color=do.call(rgb, as.list(hull.avg.col)),
+    hull.compsize=shape.size,
+    hull.coverage=shape.size/sum(inside.ch)
+  ))
+}
+
+# Datta measure 56, "shape convexity"
+shapeConvexity <- function(conn.components, img.rgb) {
+  nr <- nrow(conn.components)
+  nc <- ncol(conn.components)
+  tab <- tabulate(conn.components)
+  names(tab) <- 1:length(tab)
+  ordered.components <- rev(sort(tab))
+  threshold <- nr*nc/200
+  comps <- ordered.components[ordered.components >= threshold]
+  bound.boxes <- getBoundingBoxes(conn.components, length(tab))
+  convex.shapes <- list()
+  for (idx in 1:length(comps)) {
+    id <- as.integer(names(comps[idx]))
+    box <- bound.boxes[id, ]
+    bounding.rows <- box$FirstRow:box$LastRow
+    bounding.cols <- box$FirstColumn:box$LastColumn
+    rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
+    shape.rectangular <- rectangular == id
+    subimg.rgb <- img.rgb[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn, ]
+    convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, subimg.rgb, box$FirstRow, box$FirstColumn)
+  }
+  DO_VIEW_CONVEX <- TRUE
+  if (DO_VIEW_CONVEX) { plotConvexShapes(dim(img.rgb), convex.shapes) }
+  CONVEX_THRESHOLD <- 0.8
+  incl.mask <- unlist(lapply(convex.shapes, function(x) x$hull.coverage >= CONVEX_THRESHOLD))
+  shape.convexity.feature <- sum(as.integer(comps[incl.mask])) / (nr*nc)
+  return(shape.convexity.feature)
+}
+
+
+segmentBlockLocations <- function(conn.components, largest.ids) {
+  seg.idx <- lapply(largest.ids, function(x) which(conn.components == x))
+  names(seg.idx) <- largest.ids
+  BLOCKS <- 3
+  nr <- nrow(conn.components)
+  nc <- ncol(conn.components)
+  seg.avg.row <- lapply(seg.idx, function(idx) mean(((idx-1) %% nr) + 1))
+  seg.avg.col <- lapply(seg.idx, function(idx) mean(((idx-1) %/% nr) + 1))
+  block.row <- findInterval(seg.avg.row, seq(1, nr, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  block.col <- findInterval(seg.avg.col, seq(1, nc, length.out=BLOCKS+1), rightmost.closed=TRUE)
+  block.code <- 10 * block.row + block.col  # Datta 48--52
+
+  # My own location variant: distance from center, max 1.0
+  sr <- unlist(seg.avg.row)
+  sc <- unlist(seg.avg.col)
+  mid.r <- (nr + 1) / 2
+  mid.c <- (nc + 1) / 2
+  max.dist <- sqrt((mid.r-1)^2 + (mid.c-1)^2)
+  avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
+  block.deviation <- avg.dist / max.dist  # Esa's proxy to Datta 48--52
+
+  return(list(codes=block.code, distances=block.deviation))
+}
+
+
 # Datta measures 24--52 based on image segmentation (except 46 & 47)
-regionCompositionFeatures <- function(img.rgb, num.segments=5) {
+## Datta measure 56, "shape convexity", included
+regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.rgb, num.segments=5) {
   nr.img <- nrow(img.rgb)
   nc.img <- ncol(img.rgb)
   seg <- photoSegmentation(img.rgb)
@@ -542,7 +672,9 @@ regionCompositionFeatures <- function(img.rgb, num.segments=5) {
   k <- seg$optimal.k
 
   # Compute Datta measures:
-  comp.sizes <- rev(sort(table(conn.components)))
+  freqs <- tabulate(conn.components)  # "tabulate" is much faster than "table"
+  names(freqs) <- 1:length(freqs)
+  comp.sizes <- rev(sort(freqs))
   largest <- head(comp.sizes, num.segments)
   largest.ids <- as.integer(names(largest))
   num.threshold.comps <- sum(largest / (nr.img * nc.img) > 0.01)  # Datta feature 24
@@ -553,37 +685,24 @@ regionCompositionFeatures <- function(img.rgb, num.segments=5) {
   #print(largest.hsv.avg)  # Datta 26--40
   rel.sizes <- as.numeric(largest / (nr.img * nc.img)) # Datta 41--45
   
-  ## Skipping these two measures, as their definition seems unclear and non-intuitive.
+  ## Skipping these two measures, as their definitions seem unclear and non-intuitive.
   #avg.col.spread <-  # Datta 46
   #avg.col.complmentary <-   # Datta 47
   
-  seg.idx <- lapply(largest.ids, function(x) which(conn.components == x))
-  names(seg.idx) <- largest.ids
-  BLOCKS <- 3
-  seg.avg.row <- lapply(seg.idx, function(idx) mean(((idx-1) %% nr.img) + 1))
-  seg.avg.col <- lapply(seg.idx, function(idx) mean(((idx-1) %/% nr.img) + 1))
-  block.row <- findInterval(seg.avg.row, seq(1, nr.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
-  block.col <- findInterval(seg.avg.col, seq(1, nc.img, length.out=BLOCKS+1), rightmost.closed=TRUE)
-  block.code <- 10 * block.row + block.col  # Datta 48--52
-  #print(block.code)
-  # My own location variant: distance from center, max 1.0
-  sr <- unlist(seg.avg.row)
-  sc <- unlist(seg.avg.col)
-  mid.r <- (nr.img + 1) / 2
-  mid.c <- (nc.img + 1) / 2
-  max.dist <- sqrt((mid.r-1)^2 + (mid.c-1)^2)
-  avg.dist <- sqrt((sr-mid.r)^2 + (sc-mid.c)^2)
-  block.dev <- avg.dist / max.dist  # Esa's proxy to Datta 48--52
-  #print(block.dev)  # In addition to Datta 48--52
+  # Datta 48--52 and Esa's proxy measures (distances from center)
+  locations <- segmentBlockLocations(conn.components, largest.ids)  
+
+  convexity <- shapeConvexity(conn.components, img.rgb)  # Datta 56
   
   return(list(
-    num.large.patches=num.threshold.comps, # Datta 24
-    num.clusters=num.clusters,     # Datta 25
-    avg.patch.hsv=largest.hsv.avg, # Datta 26--40
-    rel.patch.sizes=rel.sizes,      # Datta 41--45
-                                   # excluding Datta 46 & 47
-    segment.positions=block.code,  # Datta 48--52
-    segment.distances=block.dev    # My own proxy for Datta 48--52: distances from center
+    num.large.patches=num.threshold.comps,  # Datta 24
+    num.clusters=num.clusters,  # Datta 25
+    avg.patch.hsv=largest.hsv.avg,  # Datta 26--40
+    rel.patch.sizes=rel.sizes,  # Datta 41--45
+      # excluding Datta 46 & 47
+    segment.positions=locations$codes,  # Datta 48--52
+    segment.distances=locations$distances,  # My own proxy for Datta 48--52: distances from center
+    shape.convexity=convexity  # Datta 56
   ))
 }
 

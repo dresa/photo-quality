@@ -121,6 +121,7 @@ main <- function() {
   print(paste('Segment position codes (Datta 48--52):', paste(datta.seg$segment.positions, collapse=', ')))
   print(paste('Segment distances from center (Esa proxy 48--52):', paste(datta.seg$segment.distances, collapse=', ')))
   print(paste('Depth-of-field for H, S, V (Datta 53--55):', paste(dof(img.hsv), collapse=', ')))
+  print(paste('Shape convexity feature (Datta 56):', datta.seg$shape.convexity))
   
   ddc <- dispersionDominantColor(img.hsv)
 
@@ -144,6 +145,8 @@ main <- function() {
 ## LAUNCH MAIN PROGRAM
 ##
 
+#set.seed(1)
+
 #Rprof(filename="Rprof.out", append=FALSE, line.profiling=TRUE, interval=0.01)  # Start profiling
 
 main()
@@ -151,4 +154,3 @@ main()
 #Rprof(NULL)  # End profiling
 
 # Use summaryRprof('Rprof.out', lines='show') to view the profiling results.
-
