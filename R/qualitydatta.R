@@ -573,14 +573,17 @@ plotConvexShapes <- function(dims, convex.shapes) {
     shape <- convex.shapes[[idx]]
     s.x <- c(shape$hull.x, shape$hull.x[1])
     s.y <- nr + 1 - c(shape$hull.y, shape$hull.y[1])
-    lines(s.x, s.y, col=shape$hull.col, type='l')
-    transparent.col <- do.call(rgb, as.list(c(col2rgb(shape$hull.col),200)/255))
-    polygon(s.x, s.y, border=shape$hull.col, col=transparent.col)
+    lines(s.x, s.y, col=shape$hull.color, type='l')
+    transparent.color <- do.call(rgb, as.list(c(col2rgb(shape$hull.color),170)/255))
+    polygon(s.x, s.y, border=shape$hull.color, col=transparent.color)
   }
 }
 
 
-extractConvexShape <- function(shape.rectangular, img.rgb, id, box) {
+# Given a subimage of a connected shape and associated RGB values,
+# return the conver hull information, possible adjusted by anchor point
+# that is the top-left point in the subimage.
+extractConvexShape <- function(shape.rectangular, subimg.rgb, anchor.row=1, anchor.col=1) {
   sr <- nrow(shape.rectangular)
   sc <- ncol(shape.rectangular)
   x.mask <- matrix(rep(1:sc, each=sr), nrow=sr)
@@ -591,16 +594,14 @@ extractConvexShape <- function(shape.rectangular, img.rgb, id, box) {
   ch <- findConvexHull2D(x, y)
   inside.ch <- insideConvexHull2D(x.mask, y.mask, x[ch], y[ch])
   shape.size <- sum(shape.rectangular)
-  #print(paste('Inside ratio: ', shape.size, sum(inside.ch), shape.size/sum(inside.ch)))
-  #print(paste('Bounding box corner', box$FirstRow, box$FirstColumn))
   hull.avg.col <- unlist(lapply(
     list(RED,GREEN,BLUE),
-    function(channel) mean(extractRGBChannel(img.rgb, channel)[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn][shape.rectangular])
+    function(channel) mean(extractRGBChannel(subimg.rgb, channel)[shape.rectangular])
   ))
   return(list(
-    hull.x=x[ch]+box$FirstColumn-1,
-    hull.y=-y[ch]+box$FirstRow-1,
-    hull.col=do.call(rgb, as.list(hull.avg.col)),
+    hull.x= x[ch] + anchor.col - 1,
+    hull.y= -y[ch] + anchor.row - 1,
+    hull.color=do.call(rgb, as.list(hull.avg.col)),
     hull.compsize=shape.size,
     hull.coverage=shape.size/sum(inside.ch)
   ))
@@ -624,7 +625,8 @@ shapeConvexity <- function(conn.components, img.rgb) {
     bounding.cols <- box$FirstColumn:box$LastColumn
     rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
     shape.rectangular <- rectangular == id
-    convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, img.rgb, id, box)
+    subimg.rgb <- img.rgb[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn, ]
+    convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, subimg.rgb, box$FirstRow, box$FirstColumn)
   }
   DO_VIEW_CONVEX <- TRUE
   if (DO_VIEW_CONVEX) { plotConvexShapes(dim(img.rgb), convex.shapes) }
