@@ -110,20 +110,18 @@ insideConvexHull2D <- function(px, py, ch.x, ch.y, eps=1e-14) {
     return(distanceToLineSegment2D(px, py, sx, sy, ex, ey) < eps)
   }
   else if (k >= 3) {
-    ch.x.ext <- c(ch.x, ch.x[1])  # repeat first point
-    ch.y.ext <- c(ch.y, ch.y[1])
-    facets.x <- diff(ch.x.ext)  # relative shift w.r.t one facet
-    facets.y <- diff(ch.y.ext)
-    rel.px <- rep(px, each=k) - ch.x  # represent points are vectors from facet start points
-    rel.py <- rep(py, each=k) - ch.y
     # Looking at start--end vector, does start--point vector turn clockwise from it?
     # Check each (point,facet) pair; if TRUE for all facets, then point in inside convex hull.
-    cw <- isClockwiseTurn2D(rep(facets.x, n), rep(facets.y, n), rel.px, rel.py)
-    inside <- colSums(matrix(cw, nrow=k)) == k  # points as columns, facets as rows
+    facets.x <- diff(c(ch.x, ch.x[1]))  # relative shift w.r.t one facet
+    facets.y <- diff(c(ch.y, ch.y[1]))
+    inside <- !logical(n)  # initialized with TRUE
+    # Conserve memory: one facet at a time. We know k should be small.
+    for (i in 1:k) { inside <- inside & isClockwiseTurn2D(facets.x[i], facets.y[i], px - ch.x[i], py - ch.y[i]) }
     return(inside)
   }
 }
-## Test:
+### Test:
+#library(microbenchmark)
 #stopifnot(all(insideConvexHull2D(c(1.89, 1.9, 2, 2+1e-15, 2.1), c(3.89, 3.9, 4, 4+1e-15, 4.1), c(1.90, 2.05), c(3.90,4.05)) == c(F,T,T,T,F)))
 #test.x <- c(5,4,8,9,4,10,6,4,8,8,2,6,3,4)
 #test.y <- c(3,3,1,10,3,8,9,9,5,1,10,1,3,1)
@@ -137,6 +135,10 @@ insideConvexHull2D <- function(px, py, ch.x, ch.y, eps=1e-14) {
 #p.y <- c(1,1,3,10,10, 8,  6, 1, 4.5, 0, 9.9, 10.1, 9.34, 4.4)
 #p.expected <- c(T, T, T, T, T, T, T, T, T, F, F, F, F, F)
 #stopifnot(all(insideConvexHull2D(p.x, p.y, test.ch.x, test.ch.y) == p.expected))
+#print(microbenchmark(insideConvexHull2D(p.x, p.y, test.ch.x, test.ch.y), times=10000))
+#x <- runif(10); y <- runif(10); plot(x, y, pch=15); ch <- chull(x,y); lines(x[c(ch, ch[1])], y[c(ch,ch[1])]); points(x[ch[1]], y[ch[1]], col='blue', pch=20)
+#test.x <- runif(1000); test.y <- runif(1000); points(test.x, test.y, col=ifelse(insideConvexHull2D(test.x, test.y, x[ch], y[ch]), 'green', 'red'), pch=19)
+
 
 
 # Compute the area of a convex hull. We are assuming the
@@ -191,4 +193,5 @@ findConvexHull2D <- function(x, y) {
 #ch.y <- many.y[ch]
 #lines(c(ch.x, ch.x[1]), c(ch.y, ch.y[1]), col='blue')
 #points(ch.x[1], ch.y[1], col="black", pch=19)
+
 

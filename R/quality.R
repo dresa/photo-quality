@@ -78,14 +78,14 @@ sequenceMidpoints <- function(vec) {
   return(mids)
 }
 localMinimaIndices <- function(vec) {
-  is.minima <- function(xs, i) i == 1 || i == length(xs) || (xs[i-1] >= xs[i] && xs[i+1] >= xs[i])
-  minima.idxs <- which(sapply(1:length(vec), function(i) is.minima(vec, i)))
-  return(minima.idxs)
+  n <- length(vec)
+  d <- c(0, diff(vec), 0)
+  return(which(d[1:n] <= 0 & d[2:(n+1)] >= 0))
 }
 localMaximaIndices <- function(vec) {
-  is.maxima <- function(xs, i) i == 1 || i == length(xs) || (xs[i-1] <= xs[i] && xs[i+1] <= xs[i])
-  maxima.idxs <- which(sapply(1:length(vec), function(i) is.maxima(vec, i)))
-  return(maxima.idxs)
+  n <- length(vec)
+  d <- c(0, diff(vec), 0)
+  return(which(d[1:n] >= 0 & d[2:(n+1)] <= 0))
 }
 
 # Pina Marziliano, Frederic Dufaux, Stefan Winkler and Touradj Ebrahimi:
