@@ -587,13 +587,15 @@ plotConvexShapes <- function(dims, convex.shapes) {
   nc <- dims[2]
   default.par <- par(mar=c(1,1,2,1))
   plot(c(), xlim=c(1,nc), ylim=c(1,nr), main='Convex shapes in image', xlab=NULL, ylab=NULL, xaxt='n', yaxt='n')
-  for (idx in 1:length(convex.shapes)) {
-    shape <- convex.shapes[[idx]]
-    s.x <- c(shape$hull.x, shape$hull.x[1])
-    s.y <- nr + 1 - c(shape$hull.y, shape$hull.y[1])
-    lines(s.x, s.y, col=shape$hull.color, type='l')
-    transparent.color <- do.call(rgb, as.list(c(col2rgb(shape$hull.color),170)/255))
-    polygon(s.x, s.y, border=shape$hull.color, col=transparent.color)
+  if (length(convex.shapes) >= 1) {
+    for (idx in 1:length(convex.shapes)) {
+      shape <- convex.shapes[[idx]]
+      s.x <- c(shape$hull.x, shape$hull.x[1])
+      s.y <- nr + 1 - c(shape$hull.y, shape$hull.y[1])
+      lines(s.x, s.y, col=shape$hull.color, type='l')
+      transparent.color <- do.call(rgb, as.list(c(col2rgb(shape$hull.color),170)/255))
+      polygon(s.x, s.y, border=shape$hull.color, col=transparent.color)
+    }
   }
   par(default.par)  # restore graphical parameters
 }
@@ -637,21 +639,23 @@ shapeConvexity <- function(conn.components, img.rgb) {
   comps <- ordered.components[ordered.components >= threshold]
   bound.boxes <- getBoundingBoxes(conn.components, length(tab))
   convex.shapes <- list()
-  for (idx in 1:length(comps)) {
-    id <- as.integer(names(comps[idx]))
-    box <- bound.boxes[id, ]
-    bounding.rows <- box$FirstRow:box$LastRow
-    bounding.cols <- box$FirstColumn:box$LastColumn
-    rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
-    shape.rectangular <- rectangular == id
-    subimg.rgb <- img.rgb[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn, , drop=FALSE]
-    convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, subimg.rgb, box$FirstRow, box$FirstColumn)
+  if (length(comps) >= 1) {
+    for (idx in 1:length(comps)) {
+      id <- as.integer(names(comps[idx]))
+      box <- bound.boxes[id, ]
+      bounding.rows <- box$FirstRow:box$LastRow
+      bounding.cols <- box$FirstColumn:box$LastColumn
+      rectangular <- conn.components[bounding.rows, bounding.cols, drop=FALSE]
+      shape.rectangular <- rectangular == id
+      subimg.rgb <- img.rgb[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn, , drop=FALSE]
+      convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, subimg.rgb, box$FirstRow, box$FirstColumn)
+    }
   }
   DO_VIEW_CONVEX <- FALSE  # TRUE
   if (DO_VIEW_CONVEX) { plotConvexShapes(dim(img.rgb), convex.shapes) }
   CONVEX_THRESHOLD <- 0.8
   incl.mask <- unlist(lapply(convex.shapes, function(x) x$hull.coverage >= CONVEX_THRESHOLD))
-  shape.convexity.feature <- sum(as.integer(comps[incl.mask])) / (nr*nc)
+  shape.convexity.feature <- if (length(comps)) sum(as.integer(comps[incl.mask])) / (nr*nc) else 0
   return(shape.convexity.feature)
 }
 
