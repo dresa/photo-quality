@@ -585,7 +585,8 @@ getBoundingBoxes <- function(m, max.id) {
 plotConvexShapes <- function(dims, convex.shapes) {
   nr <- dims[1]
   nc <- dims[2]
-  plot(c(), xlim=c(1,nc), ylim=c(1,nr), main='Convex shapes')
+  default.par <- par(mar=c(1,1,2,1))
+  plot(c(), xlim=c(1,nc), ylim=c(1,nr), main='Convex shapes in image', xlab=NULL, ylab=NULL, xaxt='n', yaxt='n')
   for (idx in 1:length(convex.shapes)) {
     shape <- convex.shapes[[idx]]
     s.x <- c(shape$hull.x, shape$hull.x[1])
@@ -594,6 +595,7 @@ plotConvexShapes <- function(dims, convex.shapes) {
     transparent.color <- do.call(rgb, as.list(c(col2rgb(shape$hull.color),170)/255))
     polygon(s.x, s.y, border=shape$hull.color, col=transparent.color)
   }
+  par(default.par)  # restore graphical parameters
 }
 
 
@@ -645,7 +647,7 @@ shapeConvexity <- function(conn.components, img.rgb) {
     subimg.rgb <- img.rgb[box$FirstRow:box$LastRow, box$FirstColumn:box$LastColumn, , drop=FALSE]
     convex.shapes[[idx]] <- extractConvexShape(shape.rectangular, subimg.rgb, box$FirstRow, box$FirstColumn)
   }
-  DO_VIEW_CONVEX <- TRUE
+  DO_VIEW_CONVEX <- FALSE  # TRUE
   if (DO_VIEW_CONVEX) { plotConvexShapes(dim(img.rgb), convex.shapes) }
   CONVEX_THRESHOLD <- 0.8
   incl.mask <- unlist(lapply(convex.shapes, function(x) x$hull.coverage >= CONVEX_THRESHOLD))
