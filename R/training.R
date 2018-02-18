@@ -44,6 +44,7 @@ measure <- function(filename) {
   colorfulness.grey.score <- colorfulness(img, 'grey', n=6)
   avg.saturation <- avgSaturation(img.hsv)
   avg.hue <- avgHue(img.hsv)
+  if (is.na(avg.hue)) avg.hue <- 0  # should detect non-colorness from "central saturation"
   avg.central.hue <- avgCentralHue(img.hsv)
   if (is.na(avg.central.hue)) avg.central.hue <- 0  # should detect non-colorness from "central saturation"
   avg.central.saturation <- avgCentralSaturation(img.hsv)
