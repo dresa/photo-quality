@@ -45,6 +45,7 @@ measure <- function(filename) {
   avg.saturation <- avgSaturation(img.hsv)
   avg.hue <- avgHue(img.hsv)
   avg.central.hue <- avgCentralHue(img.hsv)
+  if (is.na(avg.central.hue)) avg.central.hue <- 0  # should detect non-colorness from "central saturation"
   avg.central.saturation <- avgCentralSaturation(img.hsv)
   avg.central.intensity <- avgCentralIntensity(img.hsv)
   tx <- texture(img.hsv)

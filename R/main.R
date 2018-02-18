@@ -67,7 +67,7 @@ main <- function() {
   #filename <- '../examples/datta-colorfulness-low-1.png'
   #filename <- '../examples/datta-colorfulness-low-2.png'
 
-  filename <- '../training-data/originals/10170.jpg'  # 10338, 11402
+  filename <- '../training-data/originals/10048.jpg'  # 10338, 11402, 10170
 
   img <- readImage(filename)
   img.hsv <- toHSV(img)
