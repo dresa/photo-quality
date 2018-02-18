@@ -40,7 +40,7 @@ main <- function() {
   #filename <- '../examples/dark_city.png'
   #filename <- '../examples/violetred.png'
   #filename <- '../examples/bluehue.png'
-  filename <- '../examples/puffin.jpg'
+  #filename <- '../examples/puffin.jpg'
   #filename <- '../examples/temple_set/temple-a-original.png'
   #filename <- '../examples/temple_set/temple-b-blue.png'
   #filename <- '../examples/temple_set/temple-c-cyan.png'
@@ -67,6 +67,7 @@ main <- function() {
   #filename <- '../examples/datta-colorfulness-low-1.png'
   #filename <- '../examples/datta-colorfulness-low-2.png'
 
+  filename <- '../training-data/originals/10170.jpg'  # 10338, 11402
 
   img <- readImage(filename)
   img.hsv <- toHSV(img)

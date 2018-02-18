@@ -458,7 +458,7 @@ photoSegmentationShow <- function(img.luv, centers, clustered.img, conn.componen
 
 # Choose optimal number of clusters based on MDL (Minimum Description Length) principle.
 # This function also defines the segments in the image.
-chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.max=30, iter.max=20, restarts=3) {
+chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.min=0, k.max=30, iter.max=20, restarts=3) {
   s <- img.luv.points  # image with points as rows and LUV values as columns
   nr <- num.rows
   nc <- num.cols
@@ -507,8 +507,8 @@ chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.max=30, i
     return(mdl)
   }
 
-  mdl <- sapply(0:k.max, computeClusteringMDL)
-  names(mdl) <- 0:k.max
+  mdl <- sapply(k.min:k.max, computeClusteringMDL)
+  names(mdl) <- k.min:k.max
   mdl.k <- as.integer(names(mdl)[which.min(mdl)])
   clustering <- photoSegmentationClustering(s, mdl.k, iter.max, restarts)
   return(list(clustering=clustering, mdl.values=mdl, optimal.k=mdl.k))
@@ -516,7 +516,7 @@ chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.max=30, i
 
 
 # Segmentation tool for images, automatically chooses k (optimal number of clusters)
-photoSegmentation <- function(img.rgb) {
+photoSegmentation <- function(img.rgb, k.min=0) {
   # Preprocess:
   # * convert to LUV color space (for meaningful clustering)
   # * and downsample resolution (for performance)
@@ -524,7 +524,7 @@ photoSegmentation <- function(img.rgb) {
   img.luv[is.na(img.luv)] <- 0  # for black 'u' and 'v' are missing (limit to inf is zero)
   sample <- photoSegmentationSample(img.luv)
 
-  k.clusters <- chooseNumberClusters(sample$points, sample$dim[1], sample$dim[2])
+  k.clusters <- chooseNumberClusters(sample$points, sample$dim[1], sample$dim[2], k.min=k.min)
 
   # Now we have chosen 'k' and k cluster centers
   # Now use the full image (instead of a downsampled image)
@@ -690,7 +690,7 @@ segmentBlockLocations <- function(conn.components, largest.ids) {
 regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.rgb, num.segments=5) {
   nr.img <- nrow(img.rgb)
   nc.img <- ncol(img.rgb)
-  seg <- photoSegmentation(img.rgb)
+  seg <- photoSegmentation(img.rgb, k.min=num.segments)
   conn.components <- seg$conn.components
   k <- seg$optimal.k
 
