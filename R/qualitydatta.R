@@ -703,7 +703,7 @@ regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.r
   num.threshold.comps <- sum(largest / (nr.img * nc.img) > 0.01)  # Datta feature 24
   num.clusters <- k  # Datta feature 25
   hsv.pixels <- matrix(toHSV(img.rgb), ncol=3)
-  largest.hsv.avg <- t(sapply(largest.ids, function(x) colMeans(hsv.pixels[conn.components == x, ], na.rm=TRUE)))
+  largest.hsv.avg <- t(sapply(largest.ids, function(x) colMeans(hsv.pixels[conn.components == x, , drop=FALSE], na.rm=TRUE)))
   largest.hsv.avg[is.nan(largest.hsv.avg)] <- 0  # when fully black or white, using zero hue
   #print(largest.hsv.avg)  # Datta 26--40
   rel.sizes <- as.numeric(largest / (nr.img * nc.img)) # Datta 41--45
