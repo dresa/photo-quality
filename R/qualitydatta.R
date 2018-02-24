@@ -293,7 +293,7 @@ photoSegmentationClustering <- function(x, k, iter.max, restarts) {
   # If k=0, then simply return the column means;
   # not a clustering but to bring robustness in viewing images.
   if (k>=1) { clustering <- kmeanspp(x, k, iter.max=iter.max, restarts=restarts) }
-  else { clustering <- list(centers=matrix(colMeans(x), ncol=3)) }
+  else { clustering <- list(centers=matrix(colMeans(x), ncol=3), k=0) }
   return(clustering)
 }
 
@@ -473,7 +473,6 @@ chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.min=0, k.
     # Computed L component values are in the range [0 to 100].
     # Computed U component values are in the range [-124 to 220].
     # Computed V component values are in the range [-140 to 116].
-    
     # Encode model, with k clusters:
     mdl.dim <- eliasDelta(nr) + eliasDelta(nc)
     mdl.k <- log2(nr*nc)
@@ -511,7 +510,7 @@ chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.min=0, k.
   names(mdl) <- k.min:k.max
   mdl.k <- as.integer(names(mdl)[which.min(mdl)])
   clustering <- photoSegmentationClustering(s, mdl.k, iter.max, restarts)
-  return(list(clustering=clustering, mdl.values=mdl, optimal.k=mdl.k))
+  return(list(clustering=clustering, mdl.values=mdl, optimal.k=clustering$k, initial.k=mdl.k))
 }
 
 
@@ -536,7 +535,7 @@ photoSegmentation <- function(img.rgb, k.min=0) {
   #print(conn.components)
 
   # When debugging, enable the folloing line. Debug by viewing images:
-  #photoSegmentationShow(img.luv, k.centers, clustered.img, conn.components)
+  #photoSegmentationShow(img.luv, k.centers, clustered.img, conn.components)  # DEBUG: show intermediate images
 
   return(
     list(
@@ -690,7 +689,7 @@ segmentBlockLocations <- function(conn.components, largest.ids) {
 regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.rgb, num.segments=5) {
   nr.img <- nrow(img.rgb)
   nc.img <- ncol(img.rgb)
-  seg <- photoSegmentation(img.rgb, k.min=num.segments)
+  seg <- photoSegmentation(img.rgb)  # used 'k.min=num.segments' but number of clusters is sometimes smaller
   conn.components <- seg$conn.components
   k <- seg$optimal.k
 
@@ -703,8 +702,13 @@ regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.r
   num.threshold.comps <- sum(largest / (nr.img * nc.img) > 0.01)  # Datta feature 24
   num.clusters <- k  # Datta feature 25
   hsv.pixels <- matrix(toHSV(img.rgb), ncol=3)
-  largest.hsv.avg <- t(sapply(largest.ids, function(x) colMeans(hsv.pixels[conn.components == x, , drop=FALSE], na.rm=TRUE)))
-  largest.hsv.avg[is.nan(largest.hsv.avg)] <- 0  # when fully black or white, using zero hue
+  # Make sure we have enough HSV values, even if they are NA:
+  largest.hsv.avg <- matrix(NA, nrow=num.segments, ncol=3)
+  largest.hsv.avg[1:length(largest.ids), 1:3] <- t(
+    sapply(
+      largest.ids,
+      function(x) colMeans(hsv.pixels[conn.components == x, , drop=FALSE], na.rm=TRUE)
+  ))
   #print(largest.hsv.avg)  # Datta 26--40
   rel.sizes <- as.numeric(largest / (nr.img * nc.img)) # Datta 41--45
   
@@ -720,7 +724,7 @@ regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.r
   return(list(
     num.large.patches=num.threshold.comps,  # Datta 24
     num.clusters=num.clusters,  # Datta 25
-    avg.patch.hsv=largest.hsv.avg,  # Datta 26--40
+    avg.patch.hsv=largest.hsv.avg,  # Datta 26--40; hues may be NA for pure black and white
     rel.patch.sizes=rel.sizes,  # Datta 41--45
       # excluding Datta 46 & 47
     segment.positions=locations$codes,  # Datta 48--52
@@ -756,7 +760,10 @@ waveletDattaDof <- function(img.channel) {
   # It is the deviation from expectation, measured by expectation-units:
   # * uniform photo gets ~0, center-dominant gets >0, edge-dominant gets <0
   # * Maximum value is 1/(3^2/5^2) - 1 = 1.778 when all detail is in center; minimum is -1 (no detail in center).
-  dof.indicator <- (coeffSum3(r.mid, c.mid) / coeffSum3(1:nr3, 1:nc3) - expectation) / expectation
+  full.normalizer <- coeffSum3(1:nr3, 1:nc3)
+  if (full.normalizer == 0) dof.indicator <- 0  # in extreme cases we assume uniform image
+  else dof.indicator <- (coeffSum3(r.mid, c.mid) / full.normalizer - expectation) / expectation
+  #print(dof.indicator)
   return(dof.indicator)
 }
 

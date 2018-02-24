@@ -43,10 +43,8 @@ measure <- function(filename) {
   colorfulness.score <- colorfulness(img)
   colorfulness.grey.score <- colorfulness(img, 'grey', n=6)
   avg.saturation <- avgSaturation(img.hsv)
-  avg.hue <- avgHue(img.hsv)
-  if (is.na(avg.hue)) avg.hue <- 0  # should detect non-colorness from "central saturation"
-  avg.central.hue <- avgCentralHue(img.hsv)
-  if (is.na(avg.central.hue)) avg.central.hue <- 0  # should detect non-colorness from "central saturation"
+  avg.hue <- avgHue(img.hsv)  # could be NA in extreme cases
+  avg.central.hue <- avgCentralHue(img.hsv)  # could be NA in extreme cases
   avg.central.saturation <- avgCentralSaturation(img.hsv)
   avg.central.intensity <- avgCentralIntensity(img.hsv)
   tx <- texture(img.hsv)
@@ -61,7 +59,7 @@ measure <- function(filename) {
   dsrp <- datta.seg$rel.patch.sizes
   dssp <- datta.seg$segment.positions
   dssd <- datta.seg$segment.distances
-
+  
   return(c(img.id, blur,
            mdwe.score[['score']], mdwe.score[['gaussian']], mdwe.score[['jpeg2k']],
            exposure, rms.contrast, interval.contrast,
@@ -86,8 +84,9 @@ measure <- function(filename) {
 }
 
 
+
 training <- function(photo.dir, target.path) {
-  photos <- list.files(photo.dir, full.names=TRUE)[1:1000]
+  photos <- list.files(photo.dir, full.names=TRUE)  #[6410:6413]  # [6427] #[6411:6411] #[1:1000]
   headers <- c('Photo', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k',
                'Exposure', 'RmsContrast', 'IntervalContrast',
                'AverageIntensityD01', 'ColorfulnessD02', 'ColorfulnessGreyD02E',

@@ -30,7 +30,7 @@ source('qualitydatta.R')  # quality measurements by Datta et al
 main <- function() {
   do.view <- FALSE #TRUE  #FALSE
   print('=== START ===')
-  #filename <- '../examples/small_grid.png'
+  filename <- '../examples/small_grid.png'
   #filename <- '../examples/blue_shift.png'
   #filename <- '../examples/no_shift.png'
   #filename <- '../examples/niemi.png'
@@ -67,7 +67,7 @@ main <- function() {
   #filename <- '../examples/datta-colorfulness-low-1.png'
   #filename <- '../examples/datta-colorfulness-low-2.png'
 
-  filename <- '../training-data/originals/10048.jpg'  # 10338, 11402, 10170
+  #filename <- '../training-data/originals/33761.jpg'  # 10338, 11402, 10170, 10048
 
   img <- readImage(filename)
   img.hsv <- toHSV(img)

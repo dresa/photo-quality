@@ -94,6 +94,7 @@ initializeCenters <- function(points, k) {
   return(center.point.idx)  # return a vector of point indices that refer to chosen centers
 }
 
+
 # K-means++ clustering algorithm
 # Inspiration from mahito-sugiyama/k-meansp2.R
 # https://gist.github.com/mahito-sugiyama/ef54a3b17fff4629f106
@@ -105,10 +106,13 @@ kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
     ## Perform k-means clustering with the obtained centers:
     C <- as.integer(na.omit(centers.idx))
     init.centers <- x[C, , drop=FALSE]
+    # Note: kmeans bug in old R versions when k=1: "Error: number of cluster centres must lie between 1 and nrow(x)"
     res <- kmeans(x, init.centers, iter.max=iter.max, nstart=1, ...)
     ## Store the best result
     if (res$tot.withinss < res.best$tot.withinss) {
-      res$initial.centers <- init.centers  # add extra field to clustering results
+      # add extra fields to clustering results
+      res$initial.centers <- init.centers
+      res$k <- nrow(init.centers)  # may be different than argument 'k'
       res.best <- res
     }
   }
