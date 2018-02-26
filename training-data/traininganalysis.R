@@ -10,13 +10,35 @@
 #
 # Esa Junttila, 2017-08-26 (originally)
 
+library(randomForest)
+
 dpchallenge <- read.table('dpchallenge_dataset.txt', header=TRUE)
-measures <- read.table('measures_datta_first_1000.csv', header=TRUE, sep=';', stringsAsFactors=FALSE)
+measures <- read.table('measures_datta_16504.csv', header=TRUE, sep=';', stringsAsFactors=FALSE)
 
 # All photos
 df <- merge(dpchallenge, measures, by='Photo')
+
+# Fix problems for data analysis:
+# * Use zero hue (=red) for white, black, and non-existent segments.
+# * Use zero saturations and value (=non-saturated black) for non-existent segments.
+# * Use zero relative size for non-existent patches
+patch.hsv.size.columns <- c('AvgHuePatch1D26', 'AvgHuePatch2D27', 'AvgHuePatch3D28', 'AvgHuePatch4D29', 'AvgHuePatch5D30',
+                 'AvgSatPatch1D31', 'AvgSatPatch2D32', 'AvgSatPatch3D33', 'AvgSatPatch4D34', 'AvgSatPatch5D35',
+                 'AvgValPatch1D36', 'AvgValPatch2D37', 'AvgValPatch3D38', 'AvgValPatch4D39', 'AvgValPatch5D40',
+                 'RelSizePatch1D41', 'RelSizePatch2D42', 'RelSizePatch3D43', 'RelSizePatch4D44', 'RelSizePatch5D45')
+for (pc in patch.hsv.size.columns) df[is.na(df[[pc]]), pc] <- 0
+
+# Position code 22 (in the center) for non-existent segments:
+patch.pos.columns <- c('PositionPatch1D48', 'PositionPatch2D49', 'PositionPatch3D50', 'PositionPatch4D51', 'PositionPatch5D52')
+for (pc in patch.pos.columns) df[is.na(df[[pc]]), pc] <- 22
+
+# Distance zero from the center for non-existent segments:
+patch.dist.columns <- c('DistanceFromCenterPatch1D48E', 'DistanceFromCenterPatch2D49E', 'DistanceFromCenterPatch3D50E', 'DistanceFromCenterPatch4D51E', 'DistanceFromCenterPatch5D52E')
+for (pc in patch.dist.columns) df[is.na(df[[pc]]), pc] <- 0
+
+
 print('All photos correlations:')
-print(cor(df[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Exposure', 'RmsContrast', 'IntervalContrast',
+cor.all <- cor(df[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Exposure', 'RmsContrast', 'IntervalContrast',
                  'AverageIntensityD01', 'ColorfulnessD02', 'ColorfulnessGreyD02E',
                  'AverageSaturationD03', 'AverageHueD04',
                  'AverageCentralHueD05', 'AverageCentralSaturationD06', 'AverageCentralIntensityD07',
@@ -35,9 +57,11 @@ print(cor(df[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Ex
                  'DistanceFromCenterPatch3D50E', 'DistanceFromCenterPatch4D51E', 'DistanceFromCenterPatch5D52E', 
                  'DepthOfFieldHueD53', 'DepthOfFieldSatD54', 'DepthOfFieldValD55', 
                  'ShapeConvexityD56'
-)]))
+)])
+#print(cor.all)
+
 #plot(df$IntervalContrast, df$Rating)
-hist(df$Blur, breaks=20)
+#hist(df$Blur, breaks=20)
 model <- lm(df$Rating ~ df$Blur + df$MdweBlur + df$MdweGaussian + df$MdweJpeg2k + df$Exposure + df$RmsContrast + df$IntervalContrast +
             df$AverageIntensityD01 + df$ColorfulnessD02 + df$ColorfulnessGreyD02E +
             df$AverageCentralIntensityD07 +
@@ -66,7 +90,7 @@ sapply(colnames(df), function(x) {
 is.bw <- is.na(df$DdcCompactness) | df$DdcCompactness < 1e-5 | is.infinite(df$DdcCompactness) | df$AverageCentralSaturationD06 < 1e-5
 colored <- df[!is.bw, ]
 print('Colored correlations:')
-print(cor(colored[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Exposure', 'RmsContrast', 'IntervalContrast',
+cor.color <- cor(colored[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Exposure', 'RmsContrast', 'IntervalContrast',
                       'AverageIntensityD01', 'ColorfulnessD02', 'ColorfulnessGreyD02E',
                       'AverageSaturationD03', 'AverageHueD04',
                       'AverageCentralHueD05', 'AverageCentralSaturationD06', 'AverageCentralIntensityD07',
@@ -85,7 +109,8 @@ print(cor(colored[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k'
                       'DistanceFromCenterPatch3D50E', 'DistanceFromCenterPatch4D51E', 'DistanceFromCenterPatch5D52E', 
                       'DepthOfFieldHueD53', 'DepthOfFieldSatD54', 'DepthOfFieldValD55', 
                       'ShapeConvexityD56',
-                      'DdcMean', 'DdcCompactness', 'DdcDominance', 'DdcSpatial', 'DdcNormSpatial')]))
+                      'DdcMean', 'DdcCompactness', 'DdcDominance', 'DdcSpatial', 'DdcNormSpatial')])
+#print(cor.color)
 colored.model <- lm(colored$Rating ~ colored$Blur + colored$MdweBlur + colored$MdweGaussian + colored$MdweJpeg2k + colored$Exposure + colored$RmsContrast + colored$IntervalContrast +
                       colored$AverageIntensityD01 + colored$ColorfulnessD02 + colored$ColorfulnessGreyD02E +
                       colored$AverageSaturationD03 + colored$AverageHueD04 +
@@ -114,7 +139,7 @@ print(cor(colored$Rating, predict(colored.model)))
 ######################
 bw <- df[is.bw, ]
 print('BW correlations:')
-print(cor(bw[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Exposure', 'RmsContrast', 'IntervalContrast',
+cor.bw <- cor(bw[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Exposure', 'RmsContrast', 'IntervalContrast',
                  'AverageIntensityD01', 'ColorfulnessD02', 'ColorfulnessGreyD02E',
                  'AverageCentralIntensityD07',
                  'TextureValLevel1D16', 'TextureValLevel2D17', 'TextureValLevel3D18', 
@@ -128,7 +153,8 @@ print(cor(bw[, c('Rating', 'Blur', 'MdweBlur', 'MdweGaussian', 'MdweJpeg2k', 'Ex
                  'DistanceFromCenterPatch3D50E', 'DistanceFromCenterPatch4D51E', 'DistanceFromCenterPatch5D52E', 
                  'DepthOfFieldValD55', 
                  'ShapeConvexityD56'
-                 )]))
+                 )])
+#print(cor.bw)
 bw.model <- lm(bw$Rating ~ bw$Blur + bw$MdweBlur + bw$MdweGaussian + bw$MdweJpeg2k + bw$Exposure + bw$RmsContrast + bw$IntervalContrast +
                  bw$AverageIntensityD01 + bw$ColorfulnessD02 + bw$ColorfulnessGreyD02E +
                  bw$AverageCentralIntensityD07 +
@@ -145,3 +171,48 @@ bw.model <- lm(bw$Rating ~ bw$Blur + bw$MdweBlur + bw$MdweGaussian + bw$MdweJpeg
                  bw$ShapeConvexityD56)
 print(cor(bw$Rating, predict(bw.model)))
 
+
+# Learn a random-forest model for colored photos.
+set.seed(1)
+valid.ratings <- colored$Rating > 0  # skip photos with no ratings
+dataset <- colored[valid.ratings, ]
+n <- nrow(dataset)
+train.set <- sample(1:n, 0.6*n)
+test.set <- setdiff(1:n, train.set)
+variables <- subset(dataset, select=-c(Rating, Num, Num1, Num2, Num3, Num4, Num5, Num6, Num7, Num8, Num9, Num10, Photo, Index))
+rf <- randomForest(variables[train.set, ], dataset$Rating[train.set])
+print(rf)
+plot(rf)
+pred.ratings <- predict(rf, variables[test.set, ])
+real.ratings <- dataset$Rating[test.set]
+plot(real.ratings, pred.ratings)
+rf.corr <- cor(real.ratings, pred.ratings)
+print(paste('Predicted random-forest corr for colored:', rf.corr))
+
+refDeviations <- function(df) {
+  mu <- df$Rating
+  N <- df$Num
+  cols <- paste0('Num', 1:10)
+  counts <- sapply(cols, function(column) df[ , column])
+  diffs <- sapply(1:10, function(x) x - mu)
+  stdev <- sqrt(rowSums(counts * diffs^2) / (N - 1))
+  return(stdev)
+}
+ref.stdev <- refDeviations(dataset[test.set, ])
+ref.ratings <- rnorm(length(real.ratings), mean=real.ratings, sd=ref.stdev)
+ref.corr <- cor(ref.ratings, real.ratings)
+print(paste('Sampled reference corr for colored:', ref.corr))
+
+# How much of correlation overfitting may explain (generate random data).
+# Use worst-case scenario: using test data for BOTH model-training and testing.
+rnd.variables <- matrix(runif(length(test.set) * ncol(measures)), nrow=length(test.set))
+rnd.target <- runif(length(test.set))
+linmod <- lm(rnd.target ~ rnd.variables)
+rnd.corr <- cor(rnd.target, predict(linmod, data.frame(rnd.variables)))
+print(paste('Randomized correlation (max explained by overfitting):', rnd.corr))
+
+# Example results:
+#   Predicted random-forest corr for colored: 0.423091314162033
+#   Sampled reference corr for colored: 0.467509877868063
+#   Randomized correlation (max explained by overfitting): 0.105893844003516
+# => We are quite close to a level of how a human predicts, like 78 %.
