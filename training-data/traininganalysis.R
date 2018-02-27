@@ -185,7 +185,7 @@ print(rf)
 plot(rf)
 pred.ratings <- predict(rf, variables[test.set, ])
 real.ratings <- dataset$Rating[test.set]
-plot(real.ratings, pred.ratings, pch='.', col='darkblue', title='Average ratings vs. predictions')
+plot(real.ratings, pred.ratings, pch='.', col='darkblue', main='Average ratings vs. predictions')
 abline(lm(real.ratings ~ pred.ratings), col="darkred")
 rf.corr <- cor(real.ratings, pred.ratings)
 print(paste('Predicted random-forest corr for colored:', rf.corr))
