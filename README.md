@@ -33,7 +33,7 @@ But in photography, all we have is a single photo. This fairly new
 field of study is called *no-reference image quality assessment*, or
 *NR* for short, and it is this field where we wish to make a contribution.
 
-# Setup
+## Setup
 
 We have explored the scientific literature on NR and measures of
 image quality, and we have implemented approximately sixty such
