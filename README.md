@@ -4,7 +4,7 @@ Measure the aesthetic quality of photographs, based on cutting-edge methodology.
 ## Motivation
 
 An avid photographer may easily end up having dozens of
-seemingly identical photos. Or perhaps they wish to pick just
+seemingly identical photos. Or perhaps they wish to pick
 a handful of best photos from their collection. They might hope
 that they could give a set of photos to someone, who then
 ranks the photos and picks the best ones.
@@ -23,15 +23,16 @@ However, most photos are taken by ordinary people who follow
 general rules as it comes to photo quality. In this domain,
 we want to see excellent sharpness, little motion blur,
 *golden rule* compositions, no compression artefacts (think of
-JPEG), people's face that have their eyes open, etc.
+JPEG), people's faces that have their eyes open, etc.
 
 In fact many photo features, both technical and aesthetic in nature,
 can be modeled and measured. Indeed, the field of measuring image
 quality is a well-known research topic. Most of the research, however,
 has concentrated on measuring quality when the true image is known.
-But in photography, all we have is a single photo. This fairly new
-field of study is called *no-reference image quality assessment*, or
-*NR* for short, and it is this field where we wish to make a contribution.
+But in photography, all we have is a single photo with no ground-truth.
+This fairly new field of study is called
+*no-reference image quality assessment*, or *NR* for short, and it
+is in this field where we wish to make a contribution.
 
 ## Setup
 
@@ -49,14 +50,14 @@ regression and RandomForest were considered.
 
 Concentrating on color images, we achieved a correlation
 of 0.423 between predicted ratings and average ratings.
-In total 60% of data was used for training a randomForest
+In total 60% of data was used for training a RandomForest
 model, and the rest of the data was used to assess the
 prediction accuracy of the model.
 
 Each photo was rated by several people, so a *true* rating
 is in fact a distribution of ratings. When we sampled ratings
 randomly from these distributions, as we assume a human would
-do, we achieved a correction of 0.468 between sampled
+do, we achieved a correlation of 0.468 between sampled
 ratings and averages. Based on these correlations, we claim,
 **our method works at 90% level when compared to a human performance**.
 
