@@ -1,6 +1,67 @@
 # photo-quality
 Measure the aesthetic quality of photographs, based on cutting-edge methodology.
 
+## Motivation
+
+An avid photographer may easily end up having dozens of
+seemingly identical photos. Or perhaps they wish to pick just
+a handful of best photos from their collection. They might hope
+that they could give a set of photos to someone, who then
+ranks the photos and picks the best ones.
+
+This is possible with modern image analysis and machine
+learning techniques. I'm talking about assessing the aesthetic
+quality of photographs -- automatically. Unfortunately, none
+of the applications from Adobe, Apple, or others seem to
+address this issue. This project aims to fill the gap, that is
+aiding photo management by cutting-edge methodology.
+
+## Methodology
+
+The question of photo quality is subjective to certain extent.
+However, most photos are taken by ordinary people who follow
+general rules as it comes to photo quality. In this domain,
+we want to see excellent sharpness, little motion blur,
+*golden rule* compositions, no compression artefacts (think of
+JPEG), people's face that have their eyes open, etc.
+
+In fact many photo features, both technical and aesthetic in nature,
+can be modeled and measured. Indeed, the field of measuring image
+quality is a well-known research topic. Most of the research, however,
+has concentrated on measuring quality when the true image is known.
+But in photography, all we have is a single photo. This fairly new
+field of study is called *no-reference image quality assessment*, or
+*NR* for short, and it is this field where we wish to make a contribution.
+
+# Setup
+
+We have explored the scientific literature on NR and measures of
+image quality, and we have implemented approximately sixty such
+measures. We wish to use these to predict how humans rate photos.
+
+As test data, we use the *DPChallange* dataset, which consists
+of 16504 photos, of both color and black & white. Based on
+measurements on photos, we train a statistical model to predict
+average ratings that a photo has received. Models like linear
+regression and RandomForest were considered.
+
+## Results
+
+Concentrating on color images, we achieved a correlation
+of 0.423 between predicted ratings and average ratings.
+In total 60% of data was used for training a randomForest
+model, and the rest of the data was used to assess the
+prediction accuracy of the model.
+
+Each photo was rated by several people, so a *true* rating
+is in fact a distribution of ratings. When we sampled ratings
+randomly from these distributions, as we assume a human would
+do, we achieved a correction of 0.468 between sampled
+ratings and averages. Based on these correlations, we claim,
+**our method works at 90% level when compared to a human performance**.
+
+![Rating predictions](http://www.elisanet.fi/esajakatja/valokuvat/pq/rating_predictions.png)
+
 ## Example: puffin photo (by andreas612)
 
 **Original 755 x 501 JPG photo:**
@@ -114,28 +175,6 @@ Datta R., Joshi D., Li J. and Wang J.:
 | Segment distances from center | Esa proxy 48--52 | 0.492, 0.446, 0.443, 0.324, 0.353 | Five largest segments not in the center nor corners |
 | Only center within DOF for H, S, V | 53--55 rescaled | 0.113, -0.109, 0.109 | |
 
-## Why?
-
-Imagine that you could give a set of photos to someone, who then orders them and picks the best
-photos for you. This is possible with modern image analysis and machine learning techniques.
-I'm talking about assessing the aesthetic quality of photographs -- automatically.
-
-It's tedious to manage a large collection of photographs. An avid photographer may easily end
-up having dozens of seemingly identical photos. Unfortunately, none of the applications from
-Adobe, Apple, or others seem to address this issue. It's time to ease the pain of photo
-management and spend the time taking photos instead.
-
-The question of photo quality is subjective to certain extent. However, most photos are taken
-by ordinary people who follow general rules as it comes to photo quality. In this domain,
-we want to see excellent sharpness, little motion blur, *golden rule* compositions, no compression
-artefacts (think of JPEG), people's face that have their eyes open, etc.
-
-In fact many photo features, both technical and aesthetic in nature, can be modeled
-and measured. Indeed, the field of measuring image quality is a well-known research topic.
-Most of the research, however, has concentrated on measuring quality when the true image
-is known. But in photography, all we have is a single photo. This fairly new field of
-study is called *no-reference image quality assessment*, or *NR* for short, and it is this field
-where we wish to make a contribution.
 
 ## Future roadmap
 
