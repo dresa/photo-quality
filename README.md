@@ -55,13 +55,24 @@ model, and the rest of the data was used to assess the
 prediction accuracy of the model.
 
 Each photo was rated by several people, so a *true* rating
-is in fact a distribution of ratings. When we sampled ratings
-randomly from these distributions, as we assume a human would
-do, we achieved a correlation of 0.468 between sampled
-ratings and averages. Based on these correlations, we claim,
+is in fact a distribution of ratings, rather than average.
+When we sampled ratings randomly from these distributions,
+as we assume a human would do, we achieved a correlation
+of 0.468 between sampled ratings and averages. Based on
+these correlations, we claim,
 **our method works at 90% level when compared to a human performance**.
 
 ![Rating predictions](http://www.elisanet.fi/esajakatja/valokuvat/pq/rating_predictions.png)
+
+We used the stdev of ratings to measure the prediction error.
+On average, ratings stdev for a single photo is 1.628.
+As the absolute prediction error is only 0.615 (rating diff)
+on average, we end up with relative error of only 0.380 stdev's.
+With 95% confidence, the predictions fall within one
+stdev [-0.86;1.07] around average rating, as shown in the plot:
+
+![Prediction error](http://www.elisanet.fi/esajakatja/valokuvat/pq/prediction-rel-err-sd.png)
+
 
 ## Example: puffin photo (by andreas612)
 

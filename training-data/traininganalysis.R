@@ -203,6 +203,20 @@ ref.stdev <- refDeviations(dataset[test.set, ])
 ref.ratings <- rnorm(length(real.ratings), mean=real.ratings, sd=ref.stdev)
 ref.corr <- cor(ref.ratings, real.ratings)
 print(paste('Sampled reference corr for colored:', ref.corr))
+avg.stdev <- mean(ref.stdev)
+print(paste('Average rating stdev:', avg.stdev))
+avg.abs.err <- mean(abs(pred.ratings - real.ratings))
+print(paste('Prediction average abs(err):', avg.abs.err))
+avg.rel.abs.err <- mean(abs(pred.ratings - real.ratings) / ref.stdev)
+print(paste('Average *error vs stdev* ratio:', avg.rel.abs.err))
+rel.err.sd <- (pred.ratings - real.ratings) / ref.stdev
+conf.int.95 <- c(quantile(rel.err.sd, 0.025), quantile(rel.err.sd, 0.975))
+print(paste('Confidence interval 95% as sd err:', conf.int.95[1], '--', conf.int.95[2]))
+hist(rel.err.sd, xlim=c(-2,2), main='Relative error', xlab='relative rating error, as stdev', col='pink')
+abline(v=conf.int.95[1], col='darkblue')
+abline(v=conf.int.95[2], col='darkblue')
+text(conf.int.95[2]+0.2, 600, '95% confidence interval', srt=90, col='darkblue')
+
 
 # How much of correlation overfitting may explain (generate random data).
 # Use worst-case scenario: using test data for BOTH model-training and testing.
