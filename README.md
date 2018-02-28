@@ -65,9 +65,11 @@ these correlations, we claim,
 ![Rating predictions](http://www.elisanet.fi/esajakatja/valokuvat/pq/rating_predictions.png)
 
 We used the stdev of ratings to measure the prediction error.
-On average, ratings stdev for a single photo is 1.628.
-As the absolute prediction error is only 0.615 (rating diff)
-on average, we end up with relative error of only 0.380 stdev's.
+On an average photo in the test set, the differences between
+individual ratings and the average have stdev 1.628.
+As the absolute prediction error is only 0.615 (rating
+difference from average) on the test set, we end up with
+relative error of only 0.380 stdev's.
 With 95% confidence, the predictions fall within one
 stdev [-0.86;1.07] around average rating, as shown in the plot:
 
