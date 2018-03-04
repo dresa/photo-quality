@@ -3,6 +3,7 @@
 ##
 ## Esa Junttila, 2016-03-23
 
+source('photo.R')
 
 # Convert RGB image to an HSV image.
 # Assumptions:

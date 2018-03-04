@@ -8,6 +8,9 @@ library(grid)  # function 'grid.raster' to view images
 library(ggplot2)  # hue-usage in polar coordinates
 library(circular) # von Mises distribution densities
 
+source('photo.R')  # use extractHSVChannel
+source('common.R')  # use degreeToRadian
+
 
 # Open a new window that shows given RGB image 'img'.
 #   <img>: a single color channel (matrix with dim (h,w)) OR

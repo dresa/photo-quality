@@ -86,7 +86,6 @@ sharpAmount <- function(img, size=3) {
 
 # My own blur map that is based on the basic blur filter
 blurAmount <- function(img, size=3) {
-  blurred <- meanBlurred(img, size)
   return(1 - sharpAmount(img))
 }
 

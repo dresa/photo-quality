@@ -66,28 +66,164 @@ circular <- function(x, type=c("angles", "directions"), units=c("radians", "degr
 
 #############################################################
 #                                                           #
-#   c.circular function                                     #
+#   is.circular function                                    #
 #   Author: Claudio Agostinelli                             #
 #   E-mail: claudio@unive.it                                #
-#   Date: March, 30, 2011                                   #
-#   Version: 0.2                                            #
+#   Date: March, 7, 2003                                    #
+#   Version: 0.1                                            #
 #                                                           #
-#   Copyright (C) 2011 Claudio Agostinelli                  #
+#   Copyright (C) 2003 Claudio Agostinelli                  #
 #                                                           #
 #############################################################
 
-c.circular <- function (..., recursive = FALSE) {
-   x <- list(...)
-   value <- attr(x[[1]], "circularp")
-   n <- length(x)
-   if (n>1) {
-      for (i in 2:length(x)) {
-         x[[i]] <- conversion.circular(x[[i]], type=value$type, units=value$units, template=value$template, modulo=value$modulo, zero=value$zero, rotation=value$rotation)
+is.circular <- function (x) inherits(x, "circular")
+
+#############################################################
+#                                                           #
+#   circularp function                                      #
+#   Author: Claudio Agostinelli                             #
+#   E-mail: claudio@unive.it                                #
+#   Date: March, 7, 2003                                    #
+#   Version: 0.1                                            #
+#                                                           #
+#   Copyright (C) 2003 Claudio Agostinelli                  #
+#                                                           #
+#############################################################
+
+circularp <- function(x) attr(x, "circularp")
+
+#############################################################
+#                                                           #
+#   circularp<- function                                    #
+#   Author: Claudio Agostinelli                             #
+#   E-mail: claudio@unive.it                                #
+#   Date: October, 19, 2009                                 #
+#   Version: 0.3                                            #
+#                                                           #
+#   Copyright (C) 2009 Claudio Agostinelli                  #
+#                                                           #
+#############################################################
+
+"circularp<-" <- function(x, value) {
+  cl <- class(x)
+  if (length(value)!=6) stop("value must have six elements")
+  
+  if (is.list(value)) {
+    type <- value$type
+    units <- value$units
+    template <- value$template
+    modulo <- value$modulo
+    zero <- value$zero
+    rotation <- value$rotation
+  } else {
+    type <- value[1]
+    units <- value[2]
+    template <- value[3]
+    modulo <- value[4]
+    zero <- as.numeric(value[5])
+    rotation <- value[6]
+    value <- list(type=type, units=units, template=template, modulo=modulo, zero=zero, rotation=rotation)
+  }
+  
+  if (type!="angles" & type!="directions") stop("type (value[1]) must be 'angles', 'directions'")
+  
+  if (units!="radians" & units!="degrees" & units!="hours") stop("units (value[2]) must be 'radians' or 'degrees' or 'hours'")
+  
+  if (template!="none" & template!="geographics" & template!="clock24" & template!="clock12") stop("template (value[3]) must be 'none' or 'geographics' or 'clock24' or 'clock12'")
+  
+  if (modulo!="asis" & modulo!="2pi" &  modulo!="pi") stop("modulo (value[4]) must be 'asis' or 'pi' or '2pi'")
+  
+  if (!is.numeric(zero)) stop("zero (value[5]) must be numeric")
+  
+  if (rotation!="clock" & rotation!="counter") stop("rotation (value[6]) must be 'clock' or 'counter'")
+  
+  attr(x, "circularp") <- value
+  if (inherits(x, "circular") && is.null(value))
+    class(x) <- if (!identical(cl, "circular")) cl["circular" != cl]
+  return(x)
+}
+
+#############################################################
+#                                                           #
+#   as.circular function                                    #
+#   Author: Claudio Agostinelli                             #
+#   Email: claudio@unive.it                                 #
+#   Date: May, 31, 2006                                     #
+#   Copyright (C) 2006 Claudio Agostinelli                  #
+#                                                           #
+#   Version 0.2-1                                           #
+#############################################################
+
+as.circular <- function (x, control.circular=list(), ...) {
+  if (is.circular(x))
+    return(x)
+  else if (!is.null(xcircularp <- circularp(x)))
+    circular(x, type=xcircularp$type, units=xcircularp$units, template=xcircularp$template, modulo=xcircularp$modulo, zero=xcircularp$zero, rotation=xcircularp$rotation)
+  else {
+    warntype <- warnunits <- warntemplate <- warnrotation <- warnmodulo <- warnzero <- ""
+    printwarn <- FALSE
+    dotc <- list(..., expand=TRUE)
+    dc <- control.circular
+    if (is.null(dc$type)) {
+      if (!is.null(dotc$type)) 
+        dc$type <- dotc$type
+      else {
+        dc$type <- "angles"
+        warntype <- "  type: 'angles'\n"
+        printwarn <- TRUE
       }
-   }
-   x <- structure(c(unlist(lapply(x, unclass))), class = c("circular", "numeric"))
-   attr(x, "circularp") <- value
-   return(x)
+    }
+    if (is.null(dc$units)) {
+      if (!is.null(dotc$units))
+        dc$units <- dotc$units
+      else {
+        dc$units <- "radians"
+        warnunits <- "  units: 'radians'\n"
+        printwarn <- TRUE
+      }
+    }
+    if (is.null(dc$template)) {
+      if (!is.null(dotc$template))
+        dc$template <- dotc$template
+      else {
+        dc$template <- "none"
+        warntemplate <- "  template: 'none'\n"
+        printwarn <- TRUE
+      }
+    }
+    if (is.null(dc$modulo)) {
+      if (!is.null(dotc$modulo))
+        dc$modulo <- dotc$modulo
+      else {
+        dc$modulo <- "asis"
+        warnmodulo <- "  modulo: 'asis'\n"
+        printwarn <- TRUE
+      }
+    }
+    if (is.null(dc$zero)) {
+      if (!is.null(dotc$zero))
+        dc$zero <- dotc$zero
+      else {
+        dc$zero <- 0
+        warnzero <- "  zero: 0\n"
+        printwarn <- TRUE
+      }
+    }
+    if (is.null(dc$rotation)) {
+      if (!is.null(dotc$rotation))
+        dc$rotation <- dotc$rotation
+      else {
+        dc$rotation <- "counter"
+        warnrotation <- "  rotation: 'counter'\n"
+        printwarn <- TRUE
+      }
+    }
+    if (printwarn) {
+      warn <- paste("an object is coerced to the class 'circular' using default value for the following components:\n", warntype, warnunits, warntemplate, warnmodulo, warnzero, warnrotation, sep="")
+      warning(warn, sys.call(-1))
+    }
+    circular(x, type=dc$type, units=dc$units, template=dc$template, modulo=dc$modulo, zero=dc$zero, rotation=dc$rotation)
+  }
 }
 
 #############################################################
@@ -205,82 +341,29 @@ conversion.circular <- function(x, units=c("radians", "degrees", "hours"), type=
 
 #############################################################
 #                                                           #
-#   circularp function                                      #
+#   c.circular function                                     #
 #   Author: Claudio Agostinelli                             #
 #   E-mail: claudio@unive.it                                #
-#   Date: March, 7, 2003                                    #
-#   Version: 0.1                                            #
+#   Date: March, 30, 2011                                   #
+#   Version: 0.2                                            #
 #                                                           #
-#   Copyright (C) 2003 Claudio Agostinelli                  #
+#   Copyright (C) 2011 Claudio Agostinelli                  #
 #                                                           #
 #############################################################
- 
-circularp <- function(x) attr(x, "circularp")
 
-#############################################################
-#                                                           #
-#   circularp<- function                                    #
-#   Author: Claudio Agostinelli                             #
-#   E-mail: claudio@unive.it                                #
-#   Date: October, 19, 2009                                 #
-#   Version: 0.3                                            #
-#                                                           #
-#   Copyright (C) 2009 Claudio Agostinelli                  #
-#                                                           #
-#############################################################
- 
-"circularp<-" <- function(x, value) {
-    cl <- class(x)
-    if (length(value)!=6) stop("value must have six elements")
-
-    if (is.list(value)) {
-       type <- value$type
-       units <- value$units
-       template <- value$template
-       modulo <- value$modulo
-       zero <- value$zero
-       rotation <- value$rotation
-    } else {
-       type <- value[1]
-       units <- value[2]
-       template <- value[3]
-       modulo <- value[4]
-       zero <- as.numeric(value[5])
-       rotation <- value[6]
-       value <- list(type=type, units=units, template=template, modulo=modulo, zero=zero, rotation=rotation)
+c.circular <- function (..., recursive = FALSE) {
+  x <- list(...)
+  value <- attr(x[[1]], "circularp")
+  n <- length(x)
+  if (n>1) {
+    for (i in 2:length(x)) {
+      x[[i]] <- conversion.circular(x[[i]], type=value$type, units=value$units, template=value$template, modulo=value$modulo, zero=value$zero, rotation=value$rotation)
     }
-
-    if (type!="angles" & type!="directions") stop("type (value[1]) must be 'angles', 'directions'")
-
-    if (units!="radians" & units!="degrees" & units!="hours") stop("units (value[2]) must be 'radians' or 'degrees' or 'hours'")
-
-    if (template!="none" & template!="geographics" & template!="clock24" & template!="clock12") stop("template (value[3]) must be 'none' or 'geographics' or 'clock24' or 'clock12'")
-    
-    if (modulo!="asis" & modulo!="2pi" &  modulo!="pi") stop("modulo (value[4]) must be 'asis' or 'pi' or '2pi'")
-
-    if (!is.numeric(zero)) stop("zero (value[5]) must be numeric")
-    
-    if (rotation!="clock" & rotation!="counter") stop("rotation (value[6]) must be 'clock' or 'counter'")
-
-    attr(x, "circularp") <- value
-    if (inherits(x, "circular") && is.null(value))
-        class(x) <- if (!identical(cl, "circular")) cl["circular" != cl]
-    return(x)
+  }
+  x <- structure(c(unlist(lapply(x, unclass))), class = c("circular", "numeric"))
+  attr(x, "circularp") <- value
+  return(x)
 }
-
-#############################################################
-#                                                           #
-#   is.circular function                                    #
-#   Author: Claudio Agostinelli                             #
-#   E-mail: claudio@unive.it                                #
-#   Date: March, 7, 2003                                    #
-#   Version: 0.1                                            #
-#                                                           #
-#   Copyright (C) 2003 Claudio Agostinelli                  #
-#                                                           #
-#############################################################
- 
-is.circular <- function (x) inherits(x, "circular")
 
 #############################################################
 #                                                           #
