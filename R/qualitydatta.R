@@ -11,7 +11,7 @@
 
 library(emdist)    # Earth Mover's Distance
 library(waveslim)  # Discrete Wavelet Transform 2D
-library(NbClust)   # Optimal number of clusters
+#library(NbClust)   # Optimal number of clusters
 
 source('photo.R')
 source('colorspace.R')

@@ -102,6 +102,32 @@ A1inv <- function(x) {
 
 ###############################################################
 
+est.rho <- function(x) {
+  n <- length(x)
+  sinr <- sum(sin(x))
+  cosr <- sum(cos(x))
+  sqrt(sinr^2 + cosr^2)/n
+}
+
+###############################################################
+# Modified December, 6, 2005
+
+circ.mean <- function(x) {
+  sinr <- sum(sin(x))
+  cosr <- sum(cos(x))
+  circmean <- atan2(sinr, cosr)
+  circmean
+}
+
+###############################################################
+
+nCk <- function(n, k) {
+  result <- exp(log(gamma(n + 1)) - log(gamma(k + 1)) - log(gamma(n - k + 1)))
+  result
+}
+
+###############################################################
+
 change.pt <- function(x) {
 	phi <- function(x) {
 		arg <- A1inv(x)
@@ -138,14 +164,6 @@ change.pt <- function(x) {
 	data.frame(n, rho, rmax, k.r, rave, tmax, k.t, tave)
 }
 
-###############################################################
-
-est.rho <- function(x) {
-	n <- length(x)
-	sinr <- sum(sin(x))
-	cosr <- sum(cos(x))
-	sqrt(sinr^2 + cosr^2)/n
-}
 
 ###############################################################
 
@@ -180,15 +198,6 @@ circ.disp <- function(x) {
 	data.frame(n, r, rbar, var)
 }
 
-###############################################################
-# Modified December, 6, 2005
-
-circ.mean <- function(x) {
-	sinr <- sum(sin(x))
-	cosr <- sum(cos(x))
-	circmean <- atan2(sinr, cosr)
-	circmean
-}
 
 ###############################################################
 ## Modified March 5, 2002
@@ -488,6 +497,44 @@ plot.edf <- function(x, ...) {
 }
 
 ###############################################################
+
+pvm <- function(theta, mu, kappa, acc = 1e-020) {
+  theta <- theta %% (2 * pi)
+  mu <- mu %% (2 * pi)
+  pvm.mu0 <- function(theta, kappa, acc) {
+    flag <- "true"
+    p <- 1
+    sum <- 0
+    while(flag == "true") {
+      term <- (besselI(x=kappa, nu=p, expon.scaled = FALSE) * sin(p * theta))/p
+      sum <- sum + term
+      p <- p + 1
+      if(abs(term) < acc)
+        flag <- "false"
+    }
+    theta/(2 * pi) + sum/(pi * besselI(x=kappa, nu=0, expon.scaled = FALSE))
+  }
+  if(mu == 0) {
+    result <- pvm.mu0(theta, kappa, acc)
+  }
+  else {
+    if(theta <= mu) {
+      upper <- (theta - mu) %% (2 * pi)
+      if(upper == 0)
+        upper <- 2 * pi
+      lower <- ( - mu) %% (2 * pi)
+      result <- pvm.mu0(upper, kappa, acc) - pvm.mu0(lower, kappa, acc)
+    }
+    else {
+      upper <- theta - mu
+      lower <- mu %% (2 * pi)
+      result <- pvm.mu0(upper, kappa, acc) + pvm.mu0(lower, kappa, acc)
+    }
+  }
+  result
+}
+
+###############################################################
 ## Modified October 12, 2009
 
 pp.plot <- function(x, ref.line = TRUE) {
@@ -504,44 +551,6 @@ pp.plot <- function(x, ref.line = TRUE) {
 	if(ref.line)
 		abline(0, 1)
 	data.frame(mu, kappa)
-}
-
-###############################################################
-
-pvm <- function(theta, mu, kappa, acc = 1e-020) {
-	theta <- theta %% (2 * pi)
-	mu <- mu %% (2 * pi)
-	pvm.mu0 <- function(theta, kappa, acc) {
-		flag <- "true"
-		p <- 1
-		sum <- 0
-		while(flag == "true") {
-			term <- (besselI(x=kappa, nu=p, expon.scaled = FALSE) * sin(p * theta))/p
-			sum <- sum + term
-			p <- p + 1
-			if(abs(term) < acc)
-				flag <- "false"
-		}
-		theta/(2 * pi) + sum/(pi * besselI(x=kappa, nu=0, expon.scaled = FALSE))
-	}
-	if(mu == 0) {
-		result <- pvm.mu0(theta, kappa, acc)
-	}
-	else {
-		if(theta <= mu) {
-			upper <- (theta - mu) %% (2 * pi)
-			if(upper == 0)
-				upper <- 2 * pi
-			lower <- ( - mu) %% (2 * pi)
-			result <- pvm.mu0(upper, kappa, acc) - pvm.mu0(lower, kappa, acc)
-		}
-		else {
-			upper <- theta - mu
-			lower <- mu %% (2 * pi)
-			result <- pvm.mu0(upper, kappa, acc) + pvm.mu0(lower, kappa, acc)
-		}
-	}
-	result
 }
 
 ###############################################################
@@ -724,15 +733,47 @@ rcard <- function(n, mu, r) {
 
 ###############################################################
 
+rvm <- function(n, mean, k) {
+  vm <- c(1:n)
+  a <- 1 + (1 + 4 * (k^2))^0.5
+  b <- (a - (2 * a)^0.5)/(2 * k)
+  r <- (1 + b^2)/(2 * b)
+  obs <- 1
+  while(obs <= n) {
+    U1 <- runif(1, 0, 1)
+    z <- cos(pi * U1)
+    f <- (1 + r * z)/(r + z)
+    c <- k * (r - f)
+    U2 <- runif(1, 0, 1)
+    if(c * (2 - c) - U2 > 0) {
+      U3 <- runif(1, 0, 1)
+      vm[obs] <- sign(U3 - 0.5) * acos(f) + mean
+      vm[obs] <- vm[obs] %% (2 * pi)
+      obs <- obs + 1
+    }
+    else {
+      if(log(c/U2) + 1 - c >= 0) {
+        U3 <- runif(1, 0, 1)
+        vm[obs] <- sign(U3 - 0.5) * acos(f) + mean
+        vm[obs] <- vm[obs] %% (2 * pi)
+        obs <- obs + 1
+      }
+    }
+  }
+  vm
+}
+
+###############################################################
+
 rmixedvm <- function(n, mu1, mu2, kappa1, kappa2, p) {
-	result <- c(1:n)
-	for(i in 1:n) {
-		test <- runif(1)
-		if(test < p)
-			result[i] <- rvm(1, mu1, kappa1)
-		else result[i] <- rvm(1, mu2, kappa2)
-	}
-	result
+  result <- c(1:n)
+  for(i in 1:n) {
+    test <- runif(1)
+    if(test < p)
+      result[i] <- rvm(1, mu1, kappa1)
+    else result[i] <- rvm(1, mu2, kappa2)
+  }
+  result
 }
 
 ###############################################################
@@ -814,38 +855,6 @@ rtri <- function(n, r) {
 
 ###############################################################
 
-rvm <- function(n, mean, k) {
-	vm <- c(1:n)
-	a <- 1 + (1 + 4 * (k^2))^0.5
-	b <- (a - (2 * a)^0.5)/(2 * k)
-	r <- (1 + b^2)/(2 * b)
-	obs <- 1
-	while(obs <= n) {
-		U1 <- runif(1, 0, 1)
-		z <- cos(pi * U1)
-		f <- (1 + r * z)/(r + z)
-		c <- k * (r - f)
-		U2 <- runif(1, 0, 1)
-		if(c * (2 - c) - U2 > 0) {
-			U3 <- runif(1, 0, 1)
-			vm[obs] <- sign(U3 - 0.5) * acos(f) + mean
-			vm[obs] <- vm[obs] %% (2 * pi)
-			obs <- obs + 1
-		}
-		else {
-			if(log(c/U2) + 1 - c >= 0) {
-				U3 <- runif(1, 0, 1)
-				vm[obs] <- sign(U3 - 0.5) * acos(f) + mean
-				vm[obs] <- vm[obs] %% (2 * pi)
-				obs <- obs + 1
-			}
-		}
-	}
-	vm
-}
-
-###############################################################
-
 rwrpcauchy <- function(n, location = 0, rho = exp(-1)) {
 	if(rho == 0)
 		result <- runif(n, 0, 2 * pi)
@@ -878,6 +887,118 @@ rwrpnorm <- function(n, mu, rho, sd=1) {
 		result <- rnorm(n, mu, sd) %% (2 * pi)
 	}
 	result
+}
+
+###############################################################
+#       rstable function                                      #
+#       Date: January, 22, 2002                               #
+#       Version: 0.1                                          #
+#                                                             #
+###############################################################
+#                                                             #
+#   This  R code is based on C functions gsl_ran_levy and     #
+#     gsl_ran_levy_skew from GNU Scientifi Library            #
+#      copyrighted under GNU general license by               #
+#     James Theiler, Brian Gough and Keith Briggs.            #
+#                                                             #
+###############################################################     
+#   Here the original comments in the code:
+#
+#   The stable Levy probability distributions have the form
+#
+#   p(x) dx = (1/(2 pi)) \int dt exp(- it x - |c t|^alpha)
+#
+#   with 0 < alpha <= 2. 
+#
+#   For alpha = 1, we get the Cauchy distribution
+#   For alpha = 2, we get the Gaussian distribution with sigma = sqrt(2) c.
+#
+#   Fromn Chapter 5 of Bratley, Fox and Schrage "A Guide to
+#   Simulation". The original reference given there is,
+#
+#   J.M. Chambers, C.L. Mallows and B. W. Stuck. "A method for
+#   simulating stable random variates". Journal of the American
+#   Statistical Association, JASA 71 340-344 (1976).
+#
+#   The following routine for the skew-symmetric case was provided by
+#   Keith Briggs.
+#
+#   The stable Levy probability distributions have the form
+#
+#   2*pi* p(x) dx
+#
+#     = \int dt exp(mu*i*t-|sigma*t|^alpha*(1-i*beta*sign(t)*tan(pi*alpha/2))) for alpha!=1
+#     = \int dt exp(mu*i*t-|sigma*t|^alpha*(1+i*beta*sign(t)*2/pi*log(|t|)))   for alpha==1
+#
+#   with 0<alpha<=2, -1<=beta<=1, sigma>0.
+#
+#   For beta=0, sigma=c, mu=0, we get gsl_ran_levy above.
+#
+#   For alpha = 1, beta=0, we get the Lorentz distribution
+#   For alpha = 2, beta=0, we get the Gaussian distribution
+#
+#   See A. Weron and R. Weron: Computer simulation of Levy alpha-stable 
+#   variables and processes, preprint Technical University of Wroclaw.
+#   http://www.im.pwr.wroc.pl/~hugo/Publications.html
+#
+###############################################################################
+
+rstable <- function(n, scale = 1, index = stop("no index arg"), skewness = 0) {
+  ##    alpha <- index
+  ##    beta <- skewness
+  if (index > 2 | index <= 0)
+    stop("rstable is not define for index outside the interval 0 < index <= 2\n")
+  if (skewness > 1 | skewness < -1)
+  {stop("rstable is not define for skewness outside the interval -1 <= skewness <= 1\n")}
+  if (skewness==0) {
+    ## cauchy case
+    if (index == 1) { 
+      return(scale*rcauchy(n, location = 0, scale = 1))
+    }
+    ## gaussian case
+    if (index == 2) { 
+      return(rnorm(n, mean = 0, sd = sqrt(2)*scale)) 
+    }
+    ## general case
+    rngstab <- vector(length=0)
+    for (i in 1:n) {
+      u <- 0 
+      while (u == 0 | u == 1) {
+        u <-  pi * (runif(1, min=0, max=1) - 0.5)
+      }
+      v <- 0
+      while (v == 0) {
+        v <- rexp(1,rate=1)   
+      }
+      t <-  sin (index * u) / (cos (u)^(1 / index))
+      s <- (cos ((1 - index) * u) / v)^((1 - index) / index)
+      rngstab <- c(rngstab, t*s)
+    }
+    return (scale * rngstab);
+  } else {
+    rngstab <- vector(length=0)
+    for (i in 1:n) {
+      u <- 0 
+      while (u == 0 | u == 1) {
+        u <-  pi * (runif(1, min=0, max=1) - 0.5)
+      }
+      v <- 0
+      while (v == 0) {
+        v <- rexp(1,rate=1)   
+      }
+      if (index == 1) {
+        X <-  (((pi/2) + skewness * u) * tan (u) - skewness * log ((pi/2) * v * cos (u) / ((pi/2) + skewness * u))) / (pi/2)
+        rngstab <- c(rngstab, (scale * (X + skewness * log (scale) / (pi/2))))
+      } else {
+        t <- skewness * tan ((pi/2) * index)
+        B <- atan(t) / index
+        S <-  (1 + t * t)^(1/(2 * index))
+        X <-  S * sin (index * (u + B)) / (cos (u)^(1 / index)) * (cos (u - index * (u + B)) / v)^((1 - index) / index)
+        rngstab <- c(rngstab, (scale * X))
+      }
+    }
+    return(rngstab)
+  }
 }
 
 ###############################################################
@@ -1200,14 +1321,6 @@ rvm <- function(n, mean, k) {
 		}
 	}
 	vm
-}
-
-###############################################################
-
-nCk <- function(n, k) {
-	result <- exp(log(gamma(n + 1)) - log(gamma(k + 1)) - log(gamma(n - k 
-+ 1)))
-	result
 }
 
 ###############################################################

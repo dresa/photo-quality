@@ -30,7 +30,7 @@ source('qualitydatta.R')  # quality measurements by Datta et al
 main <- function() {
   do.view <- FALSE #TRUE  #FALSE
   print('=== START ===')
-  filename <- '../examples/small_grid.png'
+  #filename <- '../examples/small_grid.png'
   #filename <- '../examples/blue_shift.png'
   #filename <- '../examples/no_shift.png'
   #filename <- '../examples/niemi.png'
@@ -40,7 +40,7 @@ main <- function() {
   #filename <- '../examples/dark_city.png'
   #filename <- '../examples/violetred.png'
   #filename <- '../examples/bluehue.png'
-  #filename <- '../examples/puffin.jpg'
+  filename <- '../examples/puffin.jpg'
   #filename <- '../examples/temple_set/temple-a-original.png'
   #filename <- '../examples/temple_set/temple-b-blue.png'
   #filename <- '../examples/temple_set/temple-c-cyan.png'

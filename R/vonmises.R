@@ -1,3 +1,6 @@
+source('circular.R')
+source('CircStats.R')
+
 #############################################################
 #                                                           #
 #       Original Splus: Ulric Lund                          #
