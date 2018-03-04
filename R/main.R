@@ -15,12 +15,12 @@
 #   NbClust
 #   mmand
 
-source('photo.R')         # photo data structures
-source('imageio.R')       # read photo from a file
-source('derivedimage.R')  # image conversions
-source('viewer.R')        # viewing images on-screen
-source('quality.R')       # computing quality measurements
-source('qualitydatta.R')  # quality measurements by Datta et al
+source('R/photo.R')         # photo data structures
+source('R/imageio.R')       # read photo from a file
+source('R/derivedimage.R')  # image conversions
+source('R/viewer.R')        # viewing images on-screen
+source('R/quality.R')       # computing quality measurements
+source('R/qualitydatta.R')  # quality measurements by Datta et al
 
 
 ##########
@@ -30,44 +30,44 @@ source('qualitydatta.R')  # quality measurements by Datta et al
 main <- function() {
   do.view <- FALSE #TRUE  #FALSE
   print('=== START ===')
-  #filename <- '../examples/small_grid.png'
-  #filename <- '../examples/blue_shift.png'
-  #filename <- '../examples/no_shift.png'
-  #filename <- '../examples/niemi.png'
-  #filename <- '../examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
-  #filename <- '../examples/K5_10994.JPG'
-  #filename <- '../examples/green_grass_blue_sky.png'
-  #filename <- '../examples/dark_city.png'
-  #filename <- '../examples/violetred.png'
-  #filename <- '../examples/bluehue.png'
-  filename <- '../examples/puffin.jpg'
-  #filename <- '../examples/temple_set/temple-a-original.png'
-  #filename <- '../examples/temple_set/temple-b-blue.png'
-  #filename <- '../examples/temple_set/temple-c-cyan.png'
-  #filename <- '../examples/temple_set/temple-d-yellow.png'
-  #filename <- '../examples/temple_set/temple-e-magenta.png'
-  #filename <- '../examples/temple_set/temple-f-red.png'
-  #filename <- '../examples/temple_set/temple-g-green.png'
-  #filename <- '../examples/temple_set/temple-h-noise.png'
-  #filename <- '../examples/temple_set/temple-i-contrast.png'
-  #filename <- '../examples/temple_set/temple-j-colornoise.png'
-  #filename <- '../examples/temple_set/temple-k-gaussianblur.png'
-  #filename <- '../examples/almost_black.png'
-  #filename <- '../examples/grainy.jpg'
-  #filename <- '../examples/uniform-buckets.png'
-  #filename <- '../examples/many_colors.png'
-  #filename <- '../examples/colorfulness-test.png'
-  #filename <- '../examples/bluehue.png'
-  #filename <- '../examples/pure-red.png'
-  #filename <- '../examples/flower.jpg'
+  #filename <- 'examples/small_grid.png'
+  #filename <- 'examples/blue_shift.png'
+  #filename <- 'examples/no_shift.png'
+  #filename <- 'examples/niemi.png'
+  #filename <- 'examples/sharp_or_blur.png'  # Blur annoyance quality (1--5): 1.17416513963911"
+  #filename <- 'examples/K5_10994.JPG'
+  #filename <- 'examples/green_grass_blue_sky.png'
+  #filename <- 'examples/dark_city.png'
+  #filename <- 'examples/violetred.png'
+  #filename <- 'examples/bluehue.png'
+  filename <- 'examples/puffin.jpg'
+  #filename <- 'examples/temple_set/temple-a-original.png'
+  #filename <- 'examples/temple_set/temple-b-blue.png'
+  #filename <- 'examples/temple_set/temple-c-cyan.png'
+  #filename <- 'examples/temple_set/temple-d-yellow.png'
+  #filename <- 'examples/temple_set/temple-e-magenta.png'
+  #filename <- 'examples/temple_set/temple-f-red.png'
+  #filename <- 'examples/temple_set/temple-g-green.png'
+  #filename <- 'examples/temple_set/temple-h-noise.png'
+  #filename <- 'examples/temple_set/temple-i-contrast.png'
+  #filename <- 'examples/temple_set/temple-j-colornoise.png'
+  #filename <- 'examples/temple_set/temple-k-gaussianblur.png'
+  #filename <- 'examples/almost_black.png'
+  #filename <- 'examples/grainy.jpg'
+  #filename <- 'examples/uniform-buckets.png'
+  #filename <- 'examples/many_colors.png'
+  #filename <- 'examples/colorfulness-test.png'
+  #filename <- 'examples/bluehue.png'
+  #filename <- 'examples/pure-red.png'
+  #filename <- 'examples/flower.jpg'
 
   # Example images from the article do not behave like the authors claim:
-  #filename <- '../examples/datta-colorfulness-high-1.png'
-  #filename <- '../examples/datta-colorfulness-high-2.png'
-  #filename <- '../examples/datta-colorfulness-low-1.png'
-  #filename <- '../examples/datta-colorfulness-low-2.png'
+  #filename <- 'examples/datta-colorfulness-high-1.png'
+  #filename <- 'examples/datta-colorfulness-high-2.png'
+  #filename <- 'examples/datta-colorfulness-low-1.png'
+  #filename <- 'examples/datta-colorfulness-low-2.png'
 
-  #filename <- '../training-data/originals/33761.jpg'  # 10338, 11402, 10170, 10048
+  #filename <- 'training-data/originals/33761.jpg'  # 10338, 11402, 10170, 10048
 
   img <- readImage(filename)
   img.hsv <- toHSV(img)
@@ -123,7 +123,7 @@ main <- function() {
   print(paste('Segment distances from center (Esa proxy 48--52):', paste(datta.seg$segment.distances, collapse=', ')))
   print(paste('Depth-of-field for H, S, V (Datta 53--55):', paste(dof(img.hsv), collapse=', ')))
   print(paste('Shape convexity feature (Datta 56):', datta.seg$shape.convexity))
-  
+
   ddc <- dispersionDominantColor(img.hsv)
 
   # Dominant direction, spread, and portion of the dominant color.
@@ -150,7 +150,7 @@ main <- function() {
 
 #Rprof(filename="Rprof.out", append=FALSE, line.profiling=TRUE, interval=0.01)  # Start profiling
 
-main()
+#main()
 
 #Rprof(NULL)  # End profiling
 

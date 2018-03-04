@@ -13,13 +13,13 @@ library(emdist)    # Earth Mover's Distance
 library(waveslim)  # Discrete Wavelet Transform 2D
 #library(NbClust)   # Optimal number of clusters
 
-source('photo.R')
-source('colorspace.R')
-source('imageio.R')
-source('common.R')  # k-means++
-source('viewer.R')
-source('mdl.R')
-source('convexity.R')
+source('R/photo.R')
+source('R/colorspace.R')
+source('R/imageio.R')
+source('R/common.R')  # k-means++
+source('R/viewer.R')
+source('R/mdl.R')
+source('R/convexity.R')
 
 # Datta 1: Average pixel intensity
 ##########
@@ -49,7 +49,7 @@ allocateColorsToBuckets <- function(img, n) {
   # Example: bucket ID's [0;n-1] have low Blue and Green, while Red varies from low to high.
   # Frequency of bucket-colors within the RGB image:
   bucket.freqs <- tabulate(genBucketCodes(), nbins=n^3)
-  
+
   # Debugging: show distribution of color-buckets:
   if (DEBUG_BUCKETS) {
     signs <- function(ch, x) paste(rep(ch, x), collapse='')
@@ -112,13 +112,13 @@ createEMDProblem <- function(bucket.luv, bucket.freqs, n, target='all') {
     grey={
       g <- integer(n.buckets)  # zeros
       # use grey buckets; with n=4, buckets are 1, 22, 43, 64, from black to white
-      GREY_BUCKETS <- seq(1, n.buckets, (n.buckets-1)/(n-1))  
+      GREY_BUCKETS <- seq(1, n.buckets, (n.buckets-1)/(n-1))
       g[GREY_BUCKETS] <- 1/length(GREY_BUCKETS)
       setNames(g, 1:n.buckets)}
   )
   #if (lower(target) == 'all') to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed target
   #else if (lower(target) == 'grey') to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed target
-  names(to.w) <- 
+  names(to.w) <-
   return(list(locations=locations, from.weights=from.w, to.weights=to.w))
 }
 
@@ -155,7 +155,7 @@ colorfulness <- function(img, mode='uniform', n=4) {
   p <- createEMDProblem(bucket.luv, bucket.freqs, n, mode)
   # Solve EMD instance. We can choose 'from' and 'to' either way (Euclidean is symmetric).
   e <- emdw(p$locations, p$from.weights, p$locations, p$to.weights, dist='euclidean', flows=TRUE)
-  
+
   # Debugging: given the flows, replicate the EMD distance?
   if (EMD_DEBUG) {
     print(bucket.luv)
@@ -212,7 +212,7 @@ waveletTexture <- function(img.channel) {
   ASSUMED_LEVELS <- 3
   levels <- min(c(ASSUMED_LEVELS, floor(log2(dim(img.channel)))))
   wavelet.filter <- 'd4'  # Daubechies wavelet 'd4'
-  # Perform 2D Discrete Wavelet Transform 
+  # Perform 2D Discrete Wavelet Transform
   d <- dwt.2d(img.channel, wf=wavelet.filter, J=levels)  # from 'waveslim' package
   # reconstructed <- idwt.2d(d)  # up to image dimensions that are power of two
   return(d)
@@ -467,7 +467,7 @@ chooseNumberClusters <- function(img.luv.points, num.rows, num.cols, k.min=0, k.
   ## Using several methods to choose k is too slow. Infeasible even for moderate-size images.
   #num.clust <- NbClust(data=s, distance='euclidean', min.nc=2, max.nc=25, method='kmeans', index='alllong')
   #print(num.clust)
-  
+
   computeClusteringMDL <- function(k) {
     # Sample L, U, V coordinates from uniform distributions, measured at integer granularity.
     # Computed L component values are in the range [0 to 100].
@@ -711,16 +711,16 @@ regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.r
   ))
   #print(largest.hsv.avg)  # Datta 26--40
   rel.sizes <- as.numeric(largest / (nr.img * nc.img)) # Datta 41--45
-  
+
   ## Skipping these two measures, as their definitions seem unclear and non-intuitive.
   #avg.col.spread <-  # Datta 46
   #avg.col.complmentary <-   # Datta 47
-  
+
   # Datta 48--52 and Esa's proxy measures (distances from center)
-  locations <- segmentBlockLocations(conn.components, largest.ids)  
+  locations <- segmentBlockLocations(conn.components, largest.ids)
 
   convexity <- shapeConvexity(conn.components, img.rgb)  # Datta 56
-  
+
   return(list(
     num.large.patches=num.threshold.comps,  # Datta 24
     num.clusters=num.clusters,  # Datta 25
@@ -751,7 +751,7 @@ waveletDattaDof <- function(img.channel) {
   c.mid <- c.idx[2]:c.idx[BLOCKS]
   expectation <- length(r.mid)*length(c.mid) / (nr3 * nc3)
   coeffSum3 <- function(ri, ci) sum(abs(d$HH3[ri,ci]) + abs(d$HL3[ri,ci]) + abs(d$LH3[ri,ci]), na.rm=TRUE)
-  
+
   # Debug:
   #m <- abs(d$HH3[1:nr3,1:nc3]) + abs(d$HL3[1:nr3,1:nc3]) + abs(d$LH3[1:nr3,1:nc3])
   #view((m - min(m)) / (max(m)-min(m)), title='aggregated abs features')
@@ -798,8 +798,8 @@ dof <- function(img.hsv) {
 # http://homepages.inf.ed.ac.uk/rbf/CVonline/LOCAL_COPIES/RUBNER/emd.htm
 #
 # Example:
-# Weight:   20 10  0  -->  10  2 18   
-# Location:  1  2  3        1  2  3   
+# Weight:   20 10  0  -->  10  2 18
+# Location:  1  2  3        1  2  3
 # Optimal moves: move 10 from 1 to 2, and move 18 from 2 to 3. Or move 10 from 1 to 3, and move 8 from 2 to 3.
 # The cost of moves is 28. We have 30 units in total, so distance is 28/30=0.9333333.
 #
@@ -828,7 +828,7 @@ dof <- function(img.hsv) {
 #
 # Third example:
 # Weight:      w 3 20  5 19  3  -->  5 12 12 16  5
-# 2D Location: x 2  3  5  8  9       2  3  5  8  9   
+# 2D Location: x 2  3  5  8  9       2  3  5  8  9
 #              y 1  2  4  7  9       1  2  4  7  9
 # Locations:
 #   L <- t(matrix(c(2,1, 3,2, 5,4, 8,7, 9,9), 2))  # locations by rows
@@ -920,38 +920,38 @@ dof <- function(img.hsv) {
 ####
 
 # Test image                                           EMD colorfulness distance and bucket entropy (max 6)
-#img <- readImage('../examples/uniform-buckets.png')   #  0  entropy 6 b (minimum,maximum)
-#img <- readImage('../examples/many_colors.png')       # 18
-#img <- readImage('../examples/small_grid.png')        # 48  entropy 3.14 b
-#img <- readImage('../examples/niemi.png')             # 49  entropy 3.67 b
-#img <- readImage('../examples/no_shift.png')          # 57
-#img <- readImage('../examples/K5_10994.JPG')          # 58
-#img <- readImage('../examples/puffin.jpg')            # 61
-#img <- readImage('../examples/colorfulness-test.png') # 64
-#img <- readImage('../examples/dark_city.png')         # 65
-#img <- readImage('../examples/almost_black.png')      # 83
-#img <- readImage('../examples/sharp_or_blur.png')     # 83
-#img <- readImage('../examples/bluehue.png')           # 86  entropy 0.60 b
-#img <- readImage('../examples/pure-red.png')          # 153.7  entropy 0 b (maximum,minimum)
-#img <- readImage('../examples/grainy.jpg')            #
-#img <- readImage('../examples/datta-colorfulness-high-2.png')
-#img <- readImage('../examples/green_grass_blue_sky.png')
+#img <- readImage('examples/uniform-buckets.png')   #  0  entropy 6 b (minimum,maximum)
+#img <- readImage('examples/many_colors.png')       # 18
+#img <- readImage('examples/small_grid.png')        # 48  entropy 3.14 b
+#img <- readImage('examples/niemi.png')             # 49  entropy 3.67 b
+#img <- readImage('examples/no_shift.png')          # 57
+#img <- readImage('examples/K5_10994.JPG')          # 58
+#img <- readImage('examples/puffin.jpg')            # 61
+#img <- readImage('examples/colorfulness-test.png') # 64
+#img <- readImage('examples/dark_city.png')         # 65
+#img <- readImage('examples/almost_black.png')      # 83
+#img <- readImage('examples/sharp_or_blur.png')     # 83
+#img <- readImage('examples/bluehue.png')           # 86  entropy 0.60 b
+#img <- readImage('examples/pure-red.png')          # 153.7  entropy 0 b (maximum,minimum)
+#img <- readImage('examples/grainy.jpg')            #
+#img <- readImage('examples/datta-colorfulness-high-2.png')
+#img <- readImage('examples/green_grass_blue_sky.png')
 
 # Mono-colored images have maximum distances from/to uniform distribution.
 # Ranging from 75.0 (bucket 43/64: light-grey) up to 153.7 (bucket 4/64: bright red).
 
 # Example images from the article do not behave like the authors claim:
-#img <- readImage('../examples/datta-colorfulness-high-1.png')  # 70  entropy 2.56 b
-#img <- readImage('../examples/datta-colorfulness-high-2.png')  # 63  entropy 2.50 b
-#img <- readImage('../examples/datta-colorfulness-low-1.png')   # 71  entropy 2.08 b
-#img <- readImage('../examples/datta-colorfulness-low-2.png')   # 57  entropy 2.25 b
+#img <- readImage('examples/datta-colorfulness-high-1.png')  # 70  entropy 2.56 b
+#img <- readImage('examples/datta-colorfulness-high-2.png')  # 63  entropy 2.50 b
+#img <- readImage('examples/datta-colorfulness-low-1.png')   # 71  entropy 2.08 b
+#img <- readImage('examples/datta-colorfulness-low-2.png')   # 57  entropy 2.25 b
 
 #source('viewer.R')
 #view(img)
 #print(toXYZ(img))
 
 #Rprof(filename="Rprof.out", append = FALSE, interval = 0.01,
-#      memory.profiling = FALSE, gc.profiling = FALSE, 
+#      memory.profiling = FALSE, gc.profiling = FALSE,
 #      line.profiling=TRUE, numfiles = 100L, bufsize = 10000L)
 
 #print(colorfulness(img, 'uniform'))

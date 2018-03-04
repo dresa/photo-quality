@@ -1,5 +1,5 @@
-source('circular.R')
-source('CircStats.R')
+source('R/circular.R')
+source('R/CircStats.R')
 
 #############################################################
 #                                                           #

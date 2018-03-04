@@ -4,9 +4,9 @@
 ## Esa Junttila, 2016-03-23
 
 
-source('convolutionfilter.R')  # filters (kernels) for 2D convolution
-source('imageconvolution.R')  # 2D convolution functions
-source('colorspace.R')  # convert RGB to HSV
+source('R/convolutionfilter.R')  # filters (kernels) for 2D convolution
+source('R/imageconvolution.R')  # 2D convolution functions
+source('R/colorspace.R')  # convert RGB to HSV
 
 # Nobuyuki Otsu, ?A threshold selection method from gray-level histograms".
 # IEEE Trans. Sys., Man., Cyber. 9 (1): 62?66. (1979). 

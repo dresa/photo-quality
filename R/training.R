@@ -20,14 +20,14 @@
 
 
 
-source('photo.R')         # photo data structures
-source('imageio.R')       # read photo from a file
-source('derivedimage.R')  # image conversions
-source('quality.R')       # computing quality measurements
-source('qualitydatta.R')  # computing "Datta" collection of quality measurements
+source('R/photo.R')         # photo data structures
+source('R/imageio.R')       # read photo from a file
+source('R/derivedimage.R')  # image conversions
+source('R/quality.R')       # computing quality measurements
+source('R/qualitydatta.R')  # computing "Datta" collection of quality measurements
 
-PHOTO_DIR <- '../training-data/originals/'
-TARGET_PATH <- '../training-data/measures.csv'
+PHOTO_DIR <- 'training-data/originals/'
+TARGET_PATH <- 'training-data/measures.csv'
 
 measure <- function(filename) {
   print(paste('Measuring:', filename))
@@ -59,7 +59,7 @@ measure <- function(filename) {
   dsrp <- datta.seg$rel.patch.sizes
   dssp <- datta.seg$segment.positions
   dssd <- datta.seg$segment.distances
-  
+
   return(c(img.id, blur,
            mdwe.score[['score']], mdwe.score[['gaussian']], mdwe.score[['jpeg2k']],
            exposure, rms.contrast, interval.contrast,
@@ -92,20 +92,20 @@ training <- function(photo.dir, target.path) {
                'AverageIntensityD01', 'ColorfulnessD02', 'ColorfulnessGreyD02E',
                'AverageSaturationD03', 'AverageHueD04',
                'AverageCentralHueD05', 'AverageCentralSaturationD06', 'AverageCentralIntensityD07',
-               'TextureHueLevel1D10', 'TextureHueLevel2D11', 'TextureHueLevel3D12', 
-               'TextureSatLevel1D13', 'TextureSatLevel2D14', 'TextureSatLevel3D15', 
-               'TextureValLevel1D16', 'TextureValLevel2D17', 'TextureValLevel3D18', 
-               'TextureHueSumD19', 'TextureSatSumD20', 'TextureValSumD21', 
-               'SizeFeatureD22', 'AspectRatioD23', 'AspectRatioMaxD23E', 
+               'TextureHueLevel1D10', 'TextureHueLevel2D11', 'TextureHueLevel3D12',
+               'TextureSatLevel1D13', 'TextureSatLevel2D14', 'TextureSatLevel3D15',
+               'TextureValLevel1D16', 'TextureValLevel2D17', 'TextureValLevel3D18',
+               'TextureHueSumD19', 'TextureSatSumD20', 'TextureValSumD21',
+               'SizeFeatureD22', 'AspectRatioD23', 'AspectRatioMaxD23E',
                'NumLargePatchesD24', 'NumClustersD25',
-               'AvgHuePatch1D26', 'AvgHuePatch2D27', 'AvgHuePatch3D28', 'AvgHuePatch4D29', 'AvgHuePatch5D30', 
-               'AvgSatPatch1D31', 'AvgSatPatch2D32', 'AvgSatPatch3D33', 'AvgSatPatch4D34', 'AvgSatPatch5D35', 
-               'AvgValPatch1D36', 'AvgValPatch2D37', 'AvgValPatch3D38', 'AvgValPatch4D39', 'AvgValPatch5D40', 
-               'RelSizePatch1D41', 'RelSizePatch2D42', 'RelSizePatch3D43', 'RelSizePatch4D44', 'RelSizePatch5D45', 
-               'PositionPatch1D48', 'PositionPatch2D49', 'PositionPatch3D50', 'PositionPatch4D51', 'PositionPatch5D52', 
+               'AvgHuePatch1D26', 'AvgHuePatch2D27', 'AvgHuePatch3D28', 'AvgHuePatch4D29', 'AvgHuePatch5D30',
+               'AvgSatPatch1D31', 'AvgSatPatch2D32', 'AvgSatPatch3D33', 'AvgSatPatch4D34', 'AvgSatPatch5D35',
+               'AvgValPatch1D36', 'AvgValPatch2D37', 'AvgValPatch3D38', 'AvgValPatch4D39', 'AvgValPatch5D40',
+               'RelSizePatch1D41', 'RelSizePatch2D42', 'RelSizePatch3D43', 'RelSizePatch4D44', 'RelSizePatch5D45',
+               'PositionPatch1D48', 'PositionPatch2D49', 'PositionPatch3D50', 'PositionPatch4D51', 'PositionPatch5D52',
                'DistanceFromCenterPatch1D48E', 'DistanceFromCenterPatch2D49E',
-               'DistanceFromCenterPatch3D50E', 'DistanceFromCenterPatch4D51E', 'DistanceFromCenterPatch5D52E', 
-               'DepthOfFieldHueD53', 'DepthOfFieldSatD54', 'DepthOfFieldValD55', 
+               'DistanceFromCenterPatch3D50E', 'DistanceFromCenterPatch4D51E', 'DistanceFromCenterPatch5D52E',
+               'DepthOfFieldHueD53', 'DepthOfFieldSatD54', 'DepthOfFieldValD55',
                'ShapeConvexityD56',
                'DdcMean', 'DdcCompactness', 'DdcDominance', 'DdcSpatial', 'DdcNormSpatial')
   m <- matrix(sapply(photos, measure), ncol=length(headers), byrow=TRUE)

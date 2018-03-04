@@ -4,7 +4,7 @@
 ## Esa Junttila, 2016-03-23
 
 
-source('common.R')  # limit function
+source('R/common.R')  # limit function
 
 # The Blur Effect: Perception and Estimation with a New No-Reference Perceptual Blur Metric"
 # Crete F., Dolmiere T., Ladret P., Nicolas M. - GRENOBLE - 2007

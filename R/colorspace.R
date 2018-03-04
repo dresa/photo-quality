@@ -1,16 +1,45 @@
 ##
-## Color space transformation between color spaces, such as RGB and HSV.
+## Color space transformation between color spaces, such as
+## RGB, HSV, XYZ, xyY, and LUV.
 ##
 ## Esa Junttila, 2016-03-23
 
-source('photo.R')
+source('R/photo.R')
 
-# Convert RGB image to an HSV image.
-# Assumptions:
-#   RGB values are between 0 and 1.
-#   Hues are degrees between 0 and 360 (or marked as radians);
-#   Saturations and Values are between 0 and 1.
+#' Convert RGB image to an HSV image.
+#'
+#' Convert a 2D image from RGB (Red, Green, Blue) format into HSV
+#' (Hue, Saturation, Value) format. In both formats, we assume that
+#' the images are represented as three-dimensional arrays: height, width,
+#' and three channels.
+#'
+#' @param img.rgb 2D image in RGB format: three-dimensional array with
+#'   height, width, and channel. RGB values are within \code{[0;1]},
+#'   unless maximum value is specified in \code{max.value}.
+#' @param radians if TRUE, returns Hue as radians \code{[0;2*pi]};
+#'   otherwise as degrees \code{[0;360]} (default)
+#' @param max.value maximum valid RGB values, such as 1 or 255 (default 1)
+#' @return Image in HSV formatted three-dimensional array, with height,
+#'   width, and HSV channels. Saturation and Value are within \code{[0;1]}
+#'   and Hues either in \code{[0;360]} degrees or \code{[0;2*pi]} radians.
+#'   Whenever RGB values indicate black or white, HSV Hue will be \code{NA}.
+#' @examples
+#'   set.seed(1)
+#'   d <- c(4,12,3)
+#'   rgb.img <- array(sample(0:255, prod(d), replace=TRUE), dim=d) / 255
+#'   hsv.img <- toHSV(rgb.img)
+#'
+#'   rgb.px <- array(c(200, 100, 150), dim=c(1,1,3)) / 255
+#'   err.hsv <- max(abs(as.vector(toHSV(rgb.px)) - as.vector(rgb2hsv(200, 100, 150))*c(360,1,1)))
+#'   err.rgb <- max(abs(as.vector(toRGB(toHSV(rgb.px))) - as.vector(rgb.px)))
+#'   stopifnot(err.rgb < 1e-14)
+#'
+#'   stopifnot(all(abs(toHSV(rgb.px) - toHSV(rgb.px*255, max.value=255) < 1e-14)))
+#'   stopifnot(abs(toHSV(rgb.px) - toHSV(rgb.px, radians=TRUE)*c(360/(2*pi), 1, 1)) < 1e-14)
+#' @export
 toHSV <- function(img.rgb, radians=FALSE, max.value=1) {
+  stopifnot(is.logical(radians))
+  stopifnot(max.value > 0)
   # Extract R,G, and B color channels
   red <- extractRGBChannel(img.rgb, RED)
   green <- extractRGBChannel(img.rgb, GREEN)
@@ -65,7 +94,7 @@ toRGB <- function(img.hsv, radians=FALSE, na.hue=0) {
   angle <- if (radians) pi/3 else 60  # 60 degrees
   x <- chroma * (1 - abs(((hue / angle) %% 2)- 1))
   m <- value - chroma
-  
+
   # Conversion pre-processing
   red.add <- array(dim=dims)
   green.add <- array(dim=dims)
@@ -94,7 +123,7 @@ toRGB <- function(img.hsv, radians=FALSE, na.hue=0) {
 # For comparison, values for D50:
 #                    Red = RGB (1,0,0)      Green = RGB (0,1,0)      Blue = RGB (0,0,1)
 #                    X       Y        Z      X        Y      Z       X        Y       Z
-#   sRGB (D65)    0.4358  0.2224   0.0139  0.3853  0.7170  0.0971  0.1430  0.0606  0.7139	
+#   sRGB (D65)    0.4358  0.2224   0.0139  0.3853  0.7170  0.0971  0.1430  0.0606  0.7139
 #   CIE-RGB (E)   0.4685  0.1699  -0.0007  0.3274  0.8242  0.0131  0.1683  0.0059  0.8125
 toXYZ <- function(img.rgb, make.linear=TRUE) {
   adjustLinear <- function(x) {
@@ -188,13 +217,13 @@ test <- function() {
   d <- c(4,12,3)
   rgb.vec <- sample(0:255, prod(d), replace=TRUE)
   rgb <- array(rgb.vec, dim=d) / 255
-  
+
   # reference data: use R's own RGB->HSV->RGB conversion
   hsv.ref <- rgb2hsv(255*matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
   rgb.ref <- col2rgb(hsv(hsv.ref[1, ], hsv.ref[2, ], hsv.ref[3, ]))
   roundtrip.ok <- all(rgb == array(c(rgb.ref[1, ], rgb.ref[2, ], rgb.ref[3, ]), dim=d) / 255)
   if (!roundtrip.ok) stop('internal test failed: RGB->HSV->RGB conversion')
-  
+
   # custom implementations
   hsv.val <- toHSV(rgb)
   err.hsv <- max(abs(hsv.ref - matrix(c(hsv.val[,,1]/360, hsv.val[,,2], hsv.val[,,3]), nrow=3, byrow=TRUE)))
@@ -202,7 +231,7 @@ test <- function() {
   rgb.roundtrip <- toRGB(hsv.val)
   err.rgb <- max(abs(rgb.roundtrip - rgb))
   print(paste('Matrix HSV->RGB error', err.rgb))
-  
+
   # just one
   rgb <- array(c(200, 100, 150), dim=c(1,1,3)) / 255
   err.hsv <- max(abs(as.vector(toHSV(rgb)) - as.vector(rgb2hsv(200, 100, 150))*c(360,1,1)))
@@ -216,16 +245,16 @@ speedTest <- function() {
   d <- c(1000,1500,3)
   rgb.vec <- sample(0:255, prod(d), replace=TRUE)
   rgb <- array(rgb.vec, dim=d) / 255
-  
+
   refFunc <- function(rgb) {
     hsv.ref <- rgb2hsv(matrix(c(rgb[,,1], rgb[,,2], rgb[,,3]), nrow=3, byrow=TRUE))
     rgb.ref <- col2rgb(hsv(hsv.ref[1, ], hsv.ref[2, ], hsv.ref[3, ]))
     return(array(c(rgb.ref[1, ], rgb.ref[2, ], rgb.ref[3, ]), dim=d))
   }
-  
+
   st <- Sys.time(); cmp <- max(abs(toRGB(toHSV(rgb)) - rgb)); et <- Sys.time();
   print(paste('Speed test: maxerror', cmp, ', time', et - st))
-  
+
   st.ref <- Sys.time(); cmp.ref <- max(abs(refFunc(255*rgb) - 255*rgb)); et.ref <- Sys.time();
   print(paste('Reference speed test: maxerror', cmp.ref, ', time', et.ref - st.ref))
 }
