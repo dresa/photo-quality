@@ -114,5 +114,5 @@ training <- function(photo.dir, target.path) {
   write.table(df, file=target.path, row.names=FALSE, quote=FALSE, sep=';')
 }
 
-training(PHOTO_DIR, TARGET_PATH)
+#training(PHOTO_DIR, TARGET_PATH)
 

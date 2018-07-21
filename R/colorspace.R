@@ -172,6 +172,8 @@ toRGB <- function(img.hsv, radians=FALSE, na.hue=0) {
 #' @examples
 #'   toXYZ(array(c(0.2, 0.4, 0.9), dim=c(1,1,3)))
 #' @seealso
+#' \code{\link{createImageRGB}}, \code{\link{extractXYZChannel}}
+#' 
 #' \url{http://ninedegreesbelow.com/photography/xyz-rgb.html}
 #'
 #' \url{http://dougkerr.net/Pumpkin/articles/CIE_XYZ.pdf}
@@ -225,6 +227,8 @@ toXYZ <- function(img.rgb, make.linear=TRUE) {
 #' @examples
 #'   toxyY(array(c(0.2, 0.4, 0.9), dim=c(1,1,3)))
 #' @seealso
+#' \code{\link{createImageRGB}}, \code{\link{extractxyYChannel}}
+#' 
 #' \url{http://ninedegreesbelow.com/photography/xyz-rgb.html}
 #'
 #' \url{http://colormine.org/color-converter}
@@ -258,6 +262,8 @@ toxyY <- function(img.rgb) {
 #'   For black pixels, U and V will be \code{NA}. Otherwise, L, U, and V are
 #'   within \code{[0;100]}, \code{[-124;220]}, and \code{[-140;116]}.
 #' @seealso
+#' \code{\link{createImageRGB}}, \code{\link{extractLUVChannel}}
+#' 
 #' \url{http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Luv.html}
 #'
 #' \url{http://www.brucelindbloom.com/index.html?LContinuity.html}
