@@ -49,7 +49,7 @@ crossprod2D <- function(px, py, qx, qy) px*qy - py*qx
 #' @details Each argument \code{px}, \code{py}, \code{qx},
 #'   and \code{qy} must have equal length.
 #' @examples
-#'   isClockwiseTurn2D(3, 4, -2, 1) != isCounterClockwiseTurn2D(3, 4, -2, 1)
+#' isClockwiseTurn2D(3, 4, -2, 1) != isCounterClockwiseTurn2D(3, 4, -2, 1)
 NULL
 
 
