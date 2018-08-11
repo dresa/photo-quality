@@ -64,15 +64,15 @@ degreeToRadian <- function(degree) degree*(2*pi/360)
 #'   Return \code{NULL} if target cannot be found (because target value
 #'   is not within the search window or function is not increasing).
 #' @examples
-#'   binarySearch(function(x) 2*x - 4, 0, -1, +3)
-#'   binarySearch(function(x) x^2 - 2, 3, 0, +3)
-#'   binarySearch(sqrt, 0, 0, +1, tol=1e-6)
-#'   binarySearch(sqrt, 0, 0, +1)
-#'   f <- function(x) x^3 + 2*x^2 - 8*x
-#'   binarySearch(f, 5, -4, +3)  # non-increasing, ambiguous
-#'   binarySearch(f, 5, -2, +1)  # err: decreasing function, no solution
-#'   binarySearch(f, -3, 2, 3)  # err: solution not found in window
-#'   binarySearch(sqrt, 0, 0, +1, tol=1e-18)  # err: floating point precision
+#' binarySearch(function(x) 2*x - 4, 0, -1, +3)
+#' binarySearch(function(x) x^2 - 2, 3, 0, +3)
+#' binarySearch(sqrt, 0, 0, +1, tol=1e-6)
+#' binarySearch(sqrt, 0, 0, +1)
+#' f <- function(x) x^3 + 2*x^2 - 8*x
+#' binarySearch(f, 5, -4, +3)  # non-increasing, ambiguous
+#' binarySearch(f, 5, -2, +1)  # err: decreasing function, no solution
+#' binarySearch(f, -3, 2, 3)  # err: solution not found in window
+#' binarySearch(sqrt, 0, 0, +1, tol=1e-18)  # err: floating point precision
 #' @export
 #'
 binarySearch <- function(func, target, low, high, tol=1e-12, max.iter=100) {
@@ -157,16 +157,16 @@ A1inv <- function(x) {
 #'   so frequencies can be used as well.
 #' @return sampled element from a vector, according to probabilities
 #' @examples
-#'   sample.one(2) == 2
-#'   all(abs(table(replicate(3000, sample.one(2:4))) - 1000) < 100)
-#'   set.seed(1)
-#'   sample.one(seq(1.23, 2.34, 0.001)) == 1.524
-#'   is.null(sample.one(c()))
-#'   tryCatch({sample.one(1:3, c(0.6,0.4)); write("error not catched: x and prob mismatch", stderr())}, error=function(x) TRUE)
-#'   set.seed(1)
-#'   all(replicate(20, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3))) == c(3,3,4,5,3,5,5,4,4,2,3,3,4,3,5,3,5,5,3,5))
-#'   all(abs(table(replicate(10000, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3)))) - 1000*c(1,4,2,3)) < 200)
-#'   sample.one(0:4, prob=c(0, 1e-12, 0, 1 - 1e-12, 0)) == 3
+#' sample.one(2) == 2
+#' all(abs(table(replicate(3000, sample.one(2:4))) - 1000) < 100)
+#' set.seed(1)
+#' sample.one(seq(1.23, 2.34, 0.001)) == 1.524
+#' is.null(sample.one(c()))
+#' tryCatch({sample.one(1:3, c(0.6,0.4)); write("error not catched: x and prob mismatch", stderr())}, error=function(x) TRUE)
+#' set.seed(1)
+#' all(replicate(20, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3))) == c(3,3,4,5,3,5,5,4,4,2,3,3,4,3,5,3,5,5,3,5))
+#' all(abs(table(replicate(10000, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3)))) - 1000*c(1,4,2,3)) < 200)
+#' sample.one(0:4, prob=c(0, 1e-12, 0, 1 - 1e-12, 0)) == 3
 #' @export
 sample.one <- function(x, prob=NULL) {
   if (is.null(prob)) {
@@ -176,17 +176,6 @@ sample.one <- function(x, prob=NULL) {
     return(x[findInterval(runif(1), cumsum(prob/sum(prob))) + 1])
   }
 }
-## Tests:
-#stopifnot(sample.one(2) == 2)
-#stopifnot(all(abs(table(replicate(3000, sample.one(2:4))) - 1000) < 100))
-#set.seed(1)
-#stopifnot(sample.one(seq(1.23, 2.34, 0.001)) == 1.524)
-#stopifnot(is.null(sample.one(c())))
-#tryCatch({sample.one(1:3, c(0.6,0.4)); write("error not catched: x and prob mismatch", stderr())}, error=function(x) TRUE)
-#set.seed(1)
-#stopifnot(all(replicate(20, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3))) == c(3,3,4,5,3,5,5,4,4,2,3,3,4,3,5,3,5,5,3,5)))
-#stopifnot(all(abs(table(replicate(10000, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3)))) - 1000*c(1,4,2,3)) < 200))
-#stopifnot(sample.one(0:4, prob=c(0, 1e-12, 0, 1 - 1e-12, 0)) == 3)
 
 
 # Kmeans++ method for center initialization.
@@ -216,8 +205,6 @@ initializeCenters <- function(points, k) {
 }
 
 
-# 
-#   
 
 #' K-means++ clustering algorithm.
 #' 
@@ -233,7 +220,7 @@ initializeCenters <- function(points, k) {
 #'   will be used. Default is one.
 #' @param ... [optional] Other args passed to standard \code{kmeans} algorithm.
 #' @examples
-#'  x <- matrix(c(
+#' x <- matrix(c(
 #'    1,2,3,
 #'    3,6,-2,
 #'    2,2,2,
@@ -244,10 +231,9 @@ initializeCenters <- function(points, k) {
 #'    50,40,50,
 #'    29,40,45,
 #'    45,50,38), byrow=TRUE, ncol=3)
-#'  res <- kmeanspp(x, 3, iter.max=10, restarts=1)
-#'  y <- res$cluster
-#'  length(unique(y[1:4])) == 1 & length(unique(y[5:7])) == 1 & length(unique(y[8:10])) == 1
-#' 
+#' res <- kmeanspp(x, 3, iter.max=10, restarts=1)
+#' y <- res$cluster
+#' length(unique(y[1:4])) == 1 & length(unique(y[5:7])) == 1 & length(unique(y[8:10])) == 1
 #' @seealso Inspiration from \code{mahito-sugiyama/k-meansp2.R}
 #'
 #'   K-means++ from Wikipedia.

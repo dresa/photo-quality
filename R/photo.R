@@ -43,7 +43,6 @@ CIELUV <- list(CIELUV_L, CIELUV_U, CIELUV_V)
 #'   This is a generic name for all functions that create images;
 #'   see actual function names below.
 #'   All channel matrices must have equal dimensions.
-#' @details mydetails
 NULL
 
 #' Image construction from separate RGB channels.
@@ -62,11 +61,11 @@ NULL
 #'   use \code{\link{extractRGBChannel}} to extract
 #'   separate \code{RED}, \code{GREEN}, and \code{BLUE} channels.
 #' @examples
-#'   # createImageRGB example:
-#'   r <- matrix(c(0.1, 0.2, 0.3,  0.4, 0.5, 0.6), byrow=TRUE, nrow=2)
-#'   g <- matrix(c(0.0, 0.2, 0.4,  0.6, 0.8, 1.0), byrow=TRUE, nrow=2)
-#'   b <- matrix(c(0.40, 0.44, 0.48,  0.52, 0.56, 0.60), byrow=TRUE, nrow=2)
-#'   img.rgb <- createImageRGB(r, g, b)
+#' # createImageRGB example:
+#' r <- matrix(c(0.1, 0.2, 0.3,  0.4, 0.5, 0.6), byrow=TRUE, nrow=2)
+#' g <- matrix(c(0.0, 0.2, 0.4,  0.6, 0.8, 1.0), byrow=TRUE, nrow=2)
+#' b <- matrix(c(0.40, 0.44, 0.48,  0.52, 0.56, 0.60), byrow=TRUE, nrow=2)
+#' img.rgb <- createImageRGB(r, g, b)
 #'   
 #' @seealso \code{\link{extractRGBChannel}}
 #' @rdname createImage
@@ -96,11 +95,11 @@ createImageRGB <- function(reds, greens, blues) {
 #'         use \code{\link{extractHSVChannel}} to extract
 #'         separate \code{HUE}, \code{SATURATION}, and \code{VALUE} channels.
 #' @examples
-#'   # createImageHSV example:
-#'   h <- matrix(c(30, 90, 150,  210, 270, 330), byrow=TRUE, nrow=2)
-#'   s <- matrix(c(0.0, 0.2, 0.4,  0.6, 0.8, 1.0), byrow=TRUE, nrow=2)
-#'   v <- matrix(c(0.40, 0.44, 0.48,  0.52, 0.56, 0.60), byrow=TRUE, nrow=2)
-#'   img.hsv <- createImageHSV(h, s, v)
+#' # createImageHSV example:
+#' h <- matrix(c(30, 90, 150,  210, 270, 330), byrow=TRUE, nrow=2)
+#' s <- matrix(c(0.0, 0.2, 0.4,  0.6, 0.8, 1.0), byrow=TRUE, nrow=2)
+#' v <- matrix(c(0.40, 0.44, 0.48,  0.52, 0.56, 0.60), byrow=TRUE, nrow=2)
+#' img.hsv <- createImageHSV(h, s, v)
 #'   
 #' @seealso \code{\link{extractHSVChannel}}
 #' @rdname createImage
@@ -142,14 +141,14 @@ NULL
 #' @param channel.rgb \emph{RGB} channel to extract:
 #'                    either \code{RED}, \code{GREEN}, or \code{BLUE} constant.
 #' @examples
-#'   r <- matrix(runif(6), nrow=2)
-#'   g <- matrix(runif(6), nrow=2)
-#'   b <- matrix(runif(6), nrow=2)
-#'   img.rgb <- createImageRGB(r, g, b)
-#'   ext.r <- extractRGBChannel(img.rgb, RED)
-#'   ext.g <- extractRGBChannel(img.rgb, GREEN)
-#'   ext.b <- extractRGBChannel(img.rgb, BLUE)
-#'   stopifnot(all(ext.r == r), all(ext.g == g), all(ext.b == b))
+#' r <- matrix(runif(6), nrow=2)
+#' g <- matrix(runif(6), nrow=2)
+#' b <- matrix(runif(6), nrow=2)
+#' img.rgb <- createImageRGB(r, g, b)
+#' ext.r <- extractRGBChannel(img.rgb, RED)
+#' ext.g <- extractRGBChannel(img.rgb, GREEN)
+#' ext.b <- extractRGBChannel(img.rgb, BLUE)
+#' stopifnot(all(ext.r == r), all(ext.g == g), all(ext.b == b))
 #' @seealso \code{\link{createImageRGB}}
 #' @export
 extractRGBChannel <- function(img.rgb, channel.rgb) img.rgb[ , , channel.rgb$idx]
@@ -160,8 +159,8 @@ extractRGBChannel <- function(img.rgb, channel.rgb) img.rgb[ , , channel.rgb$idx
 #' @param channel.hsv \emph{HSV} channel to extract:
 #'   either \code{HUE}, \code{SATURATION}, or \code{VALUE} constant.
 #' @examples
-#'   img.hsv <- toHSV(img.rgb)
-#'   saturations <- extractHSVChannel(img.hsv, SATURATION)
+#' img.hsv <- toHSV(img.rgb)
+#' saturations <- extractHSVChannel(img.hsv, SATURATION)
 #' @seealso \code{\link{toHSV}}, \code{\link{createImageHSV}}
 #' @export
 extractHSVChannel <- function(img.hsv, channel.hsv) img.hsv[ , , channel.hsv$idx]
@@ -173,8 +172,8 @@ extractHSVChannel <- function(img.hsv, channel.hsv) img.hsv[ , , channel.hsv$idx
 #'   either \code{CIEXYZ_X} ("red--green"), \code{CIEXYZ_Y} ("luminosity"), or
 #'   \code{CIEXYZ_Z} ("blue--yellow") constant.
 #' @examples
-#'   img.xyz <- toXYZ(img.rgb)
-#'   z.blueyellow <- extractXYZChannel(img.xyz, CIEXYZ_Z)
+#' img.xyz <- toXYZ(img.rgb)
+#' z.blueyellow <- extractXYZChannel(img.xyz, CIEXYZ_Z)
 #' @seealso \code{\link{toXYZ}}
 #' @export
 extractXYZChannel <- function(img.xyz, channel.xyz) img.xyz[ , , channel.xyz$idx]
@@ -187,8 +186,8 @@ extractXYZChannel <- function(img.xyz, channel.xyz) img.xyz[ , , channel.xyz$idx
 #'   \code{CIExyY_y} ("luminosity"), or
 #'   \code{CIExyY_Y} ("color coordinate") constant.
 #' @examples
-#'   img.xyY <- toxyY(img.rgb)
-#'   Y.coords <- extractxyYChannel(img.xyY, CIExyY_Y)
+#' img.xyY <- toxyY(img.rgb)
+#' Y.coords <- extractxyYChannel(img.xyY, CIExyY_Y)
 #' @seealso \code{\link{toxyY}}
 #' @export
 extractxyYChannel <- function(img.xyY, channel.xyY) img.xyY[ , , channel.xyY$idx]
@@ -198,8 +197,8 @@ extractxyYChannel <- function(img.xyY, channel.xyY) img.xyY[ , , channel.xyY$idx
 #' @param img.luv \emph{LUV} image construct (CIE L*u*v* color space).
 #'   either \code{CIELUV_L}, \code{CIELUV_U}, \code{CIELUV_V} constant.
 #' @examples
-#'   img.luv <- toLUV(img.rgb)
-#'   luminosity <- extractLUVChannel(img.luv, CIELUV_L)
+#' img.luv <- toLUV(img.rgb)
+#' luminosity <- extractLUVChannel(img.luv, CIELUV_L)
 #' @seealso \code{\link{toLUV}}
 #' @export
 extractLUVChannel <- function(img.luv, channel.luv) img.luv[ , , channel.luv$idx]
