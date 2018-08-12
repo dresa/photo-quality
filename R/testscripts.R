@@ -12,7 +12,7 @@
 #print(Sys.time() - s)
 
 #print('Adjusted blur:')
-#print(blurAnnoyanceQuality(readImage('../examples/small_grid.png'), f.len=3))  # conv2 & conv2dFFT: 2.002251 quality
+#print(blurAnnoyanceQuality(readImage('../examples/small_grid.png'), f.len=3))  # conv2 & conv2dFFT: 2.002251 quality, normalized 0.2505627.
 
 #s <- Sys.time()
 #replicate(50, adjustBlur(readImage('../examples/sharp_or_blur.png'), 1.0, 5))
