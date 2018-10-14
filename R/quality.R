@@ -1,20 +1,61 @@
 ##
-## Quality measures for photos and images.
+## Collection of no-reference quality measures for photos and images.
 ##
 ## Esa Junttila, 2016-03-23
 
 
 source('R/common.R')  # limit function
 
-# The Blur Effect: Perception and Estimation with a New No-Reference Perceptual Blur Metric"
-# Crete F., Dolmiere T., Ladret P., Nicolas M. - GRENOBLE - 2007
-# In SPIE proceedings - SPIE Electronic Imaging Symposium Conf Human Vision and Electronic Imaging, tats-Unis d'Amrique (2007)
-# https://hal.archives-ouvertes.fr/hal-00232709/document
-# Error is possible (div by 0 in normalization)?
-# Minimum value 0, best quality in terms of blur perception.
-# Maximum value 1.0 is reported. Is it reachable? Checkerboard image: sum.gray=1.0*h*w, sum.cmp=h*w*0.5 yields 0.5 (approx)
-# http://www.mathworks.com/matlabcentral/fileexchange/24676-image-blur-metric/content//blurMetric.m
-
+#' Blur annoyance measure.
+#' 
+#' \emph{Blur annoyance} measures the quality of photos
+#' w.r.t perceptual blurriness. The method uses
+#' a grayscaled version of given photo and applies both horizontal
+#' \code{h = [1/n 1/n ... 1/n 1/n]} and
+#' vertical filters to make the photo blurry. It then compares the
+#' original and blurred images to measure the differences in
+#' blurriness. The larger the perceptual difference, the less blurry
+#' (and better in quality) the original photo is.
+#' The blur quality in the original photo is then measured by a scale
+#' from 0 to 1 (larger is better), based on an empirically-derived
+#' non-linear conversion.
+#' 
+#' The method was introduced originally in:
+#' 
+#' Frédérique Crété-Roffet, Thierry Dolmiere, Patricia Ladret, and Marina Nicola.
+#' "The Blur Effect: Perception and Estimation with a New No-Reference
+#' Perceptual Blur Metric."
+#' \emph{SPIE Electronic Imaging Symposium Conf Human Vision and Electronic Imaging},
+#' Jan 2007, San Jose, United States. XII, pp.EI 6492-16, 2007.
+#' URL: \url{https://hal.archives-ouvertes.fr/hal-00232709/document}
+#' 
+#' For some pathological photos the Blur Annoyance may be undefined,
+#' returning \code{NaN}. Note that blurriness is normalized by the differences
+#' in neighboring pixels in original photo, so if the photo is "flat"
+#' there are no differences, which leads to division by 0.
+#' 
+#' @param img photo as an RGB image array (\emph{m} x \emph{n} x 3).
+#' @param f.len [integer], strength of the blur filter (length of
+#' horizontal/vertical filters), default is 9 pixels in width.
+#' @return numeric blur annoyance between 0 (worst) and 1 (best quality),
+#' or \code{NaN} for pathological photos.
+#' @seealso
+#' There exists a reference implementation in Matlab.
+#' Note that the original article describes a non-linear model for converting
+#' blur measures \code{[0;1]} into blur annoyance qualities \code{[1;5]}.
+#' The referred Matlab implementation, however, leaves the conversion out.
+#' This R implementation has the conversion included, but also rescales the
+#' range of blur annoyance from \code{[1;5]} into \code{[0;1]}.
+#' \url{http://www.mathworks.com/matlabcentral/fileexchange/24676-image-blur-metric/content//blurMetric.m}
+#' @examples
+#' a <- array(seq(0,1,length.out=24), dim=c(2,4,3))
+#' abs(blurAnnoyanceQuality(a) - 0.7208079) < 1e-6
+#' r <- array(runif(100*200), dim=c(100,200,3))
+#' abs(blurAnnoyanceQuality(r) - 0.95) < 1e-3
+#' b <- array(0.6, dim=c(2,4,3))
+#' is.nan(blurAnnoyanceQuality(b))
+#' 
+#' @export
 blurAnnoyanceQuality <- function(img, f.len=9) {
   h <- dim(img)[1]
   w <- dim(img)[2]
@@ -41,11 +82,16 @@ blurAnnoyanceQuality <- function(img, f.len=9) {
   # Normalization
   blur.vert <- (sum.gray.vert - sum.cmp.vert) / sum.gray.vert
   blur.horiz <- (sum.gray.horiz - sum.cmp.horiz) / sum.gray.horiz
-  blur <- max(blur.vert, blur.horiz)  # from 0 to 1.0, smaller is better
-  # Convert into a quality parameter (from 1 to 5, larger is better)
+  blur <- max(blur.vert, blur.horiz)
+  # Minimum blur value 0 has best quality in terms of blur perception.
+  # Maximum blur value 1 has worst blur perception. Maximum value 1 is
+  # reported in the article, but how can it be reached? For example a
+  # checkerboard photo has: sum.gray=1.0*h*w, sum.cmp=h*w*0.5 yields 0.5 (approx).
+  
+  # Convert into a quality parameter (range 1 to 5, larger is better)
   # Constants come from the interpolation model parameters, as reported in the article.
-  quality <- 3.79/(1 + exp(10.72*blur - 4.55)) + 1.13  # from 1 to 5, larger is better
-  ## My own normalization
+  quality <- 3.79/(1 + exp(10.72*blur - 4.55)) + 1.13  # from 1 to 5 (approx)
+  ## My own normalization back to [0;1]
   normalized <- (quality-1)/4  # convert to 0--1 (larger is better)
   return(normalized)
 }
@@ -53,11 +99,10 @@ blurAnnoyanceQuality <- function(img, f.len=9) {
 
 # Helper function for the 'mdwe' method -- not a universal method.
 # TODO: how to derive the magic constant? How many bins do we consider?
-detectVerticalEdgeAreas <- function(img.gray) {
+detectVerticalEdgeAreas <- function(img.gray, bins=20) {
   f.vert <- sobelVertical()
   filtered <- imfilter(img.gray, f.vert, pad='replicate')[ , , 1]
   edge.strengths <- abs(filtered)
-  bins <- 20  # granularity: just my own magic constant
   breaks <- seq(min(edge.strengths), max(edge.strengths), length=bins)
   h <- hist(c(edge.strengths), breaks=breaks, plot=FALSE)
   thres.idx <- otsuThreshold(h$counts)
@@ -65,6 +110,9 @@ detectVerticalEdgeAreas <- function(img.gray) {
   edges <- edge.strengths >= thres.val
   return(edges)
 }
+
+
+
 # Returns a vector of midpoints (rounding up) for consecutive sub-sequences of TRUE.
 # Input: logical vector
 # For example: TRUE, FALSE, FALSE, TRUE, TRUE, TRUE, FALSE, TRUE, TRUE  --> 1,5,9
@@ -77,24 +125,57 @@ sequenceMidpoints <- function(vec) {
   mids <- as.integer(ceiling(starts + (ends - starts)/2))  # mid indices of consecutive TRUE sub-sequences
   return(mids)
 }
-localMinimaIndices <- function(vec) {
-  n <- length(vec)
-  d <- c(0, diff(vec), 0)
-  return(which(d[1:n] <= 0 & d[2:(n+1)] >= 0))
-}
-localMaximaIndices <- function(vec) {
-  n <- length(vec)
-  d <- c(0, diff(vec), 0)
-  return(which(d[1:n] >= 0 & d[2:(n+1)] <= 0))
-}
 
-# Pina Marziliano, Frederic Dufaux, Stefan Winkler and Touradj Ebrahimi:
-# A No-Reference Perceptual Blur Metric, 2002
-# TODO: derive a model to produce a quality index between 1 and 5, for example (based on data in the article)
-# TODO: horizontal-edge version of the method
+
+#' MDWE Blur Measure.
+#' 
+#' MDWE is a measure of photo blurriness, originally labeled as
+#' \emph{perceptual blur metric}. It is based on the analysis
+#' of the spread of the vertical edges in an grayscale version of an image.
+#' The MDWE Blur Measure maps a photo onto a quality value \code{[0;1]},
+#' where larger value represents better blur quality in the photo.
+#' The method measures quality on both Gaussian type blur and
+#' JPEG200 artefacts.
+#' 
+#' The method was originally introduced in:
+#' Pina Marziliano, Frederic Dufaux, Stefan Winkler and Touradj Ebrahimi.
+#' A No-Reference Perceptual Blur Metric.
+#' \emph{IEEE International Conference on Image Processing}, 2002, pages 57--60.
+#' 
+#' URL: \url{http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.7.9921&rep=rep1&type=pdf}
+#' 
+#' The original article provides both subjective (expert) and
+#' objective (computed) blur ratings for a small sample of photos.
+#' For this R implementation I developed a simple estimator that predicts
+#' a subjective blur rating from a MDWE raw score. The original range of
+#' \code{[1;10]} for MDWE raw scores was also flipped and rescaled.
+#' 
+#' Future work includes developing an horizontal-edge version of the method,
+#' and combining vertical and horizontal measures.
+#' 
+#' @param img photo as an RGB image array (\emph{m} x \emph{n} x 3).
+#' @return a list of edge-spanning blur quality values:
+#'   \itemize{
+#'     \item \code{"score"}:
+#'       original blur score as described in the article
+#'     \item \code{"gaussian"}:
+#'       quality on Gaussian-type blur within \code{[0;1]} (larger is better).
+#'     \item \code{"jpeg2k"}:
+#'       quality on JPEG2000 artefacts within \code{[0;1]} (larger is better).
+#'   }
+#'   
+#' @examples
+#' set.seed(42)
+#' r <- array(runif(100*200), dim=c(100,200,3))
+#' all(abs(unlist(mdweVertical(r)) - c(1.917252, 1, 1)) < 1e-5)
+#' b <- imfilter(r, gaussianFilter2D(10,4))
+#' all(abs(unlist(mdweVertical(b)) - c(7.95, 0.6514027, 0.1359882)) < 1e-5)
+#' 
+#' @export
 mdweVertical <- function(img) {
   img.gray <- luminance(img)  # use only the luminosity image
-  edges.areas <- detectVerticalEdgeAreas(img.gray)  # several consecutive pixels may be marked as belonging to an edge
+  # several consecutive pixels may be marked as belonging to an edge
+  edges.areas <- detectVerticalEdgeAreas(img.gray)
   total.width <- 0
   num.edges <- 0
   for (r in 1:nrow(img)) {  # for each row
@@ -124,20 +205,69 @@ mdweVertical <- function(img) {
   ## My own normalization
   score.gaussian <- limit(score.raw^1.04 - 4.5, 1, 10)  # From no blur (1) to distractive blur (10)
   score.jpeg2k <- limit(17.5*max(0,score.raw-3)^0.3 - 19.5, 1, 10)
-  norm <- function(x) -((score.gaussian - 1) / (10-1) - 1)  # 1--10 (smaller is better) --> 0--1 (larger is better)
+  norm <- function(x) -((x - 1) / (10-1) - 1)  # 1--10 (smaller is better) --> 0--1 (larger is better)
   return(list(score=score.raw, gaussian=norm(score.gaussian), jpeg2k=norm(score.jpeg2k)))
 }
 
 
-# A New No-reference Method for Color Image Quality Assessment
-# Sonia Ouni, Ezzeddine Zagrouba, Majed Chambah, 2012
-# International Journal of Computer Applications (0975 ? 8887)
-# Volume 40? No.17, February 2012
-
-# Note that there are errors in the RGB->HSV conversion formula. See Wikipedia instead.
-# The article contains numerous errors, the examples don't match with definitions,
-# and the exact methods are sometimes vague. I've done my best to develop a method
-# that is both practical and close to the spirit of the authors' ideas.
+#' Dominant color quality.
+#' 
+#' A measure of color quality in photos based on dominant colors.
+#' The method uses a circular von Mises distribution to estimate the
+#' dominant color and deviation on color hue dimension. It measures
+#' the dominant colors and how concentrated the colors are within
+#' the image.
+#' 
+#' The method was introduced in:
+#' Sonia Ouni, Ezzeddine Zagrouba, Majed Chambah.
+#' "A New No-reference Method for Color Image Quality Assessment."
+#' \emph{International Journal of Computer Applications},
+#' Vol. 40, No.17, February 2012.
+#' URL: \url{http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.259.1131&rep=rep1&type=pdf}
+#' 
+#' The article contains numerous errors: some of the examples don't match
+#' with definitions and the exact methods are sometimes vague.
+#' I've done my best to develop a method that is both practical and close
+#' to the spirit of the authors' ideas.
+#' Note that there are errors in the RGB-->HSV conversion formula the
+#' article provides. See Wikipedia instead. 
+#' 
+#' This measure computes an average distance between pixels that have
+#' dominant color. I still think the value should be normalized, as
+#' in \code{custom.ds}, for example dividing by an average distance between
+#' two pixels in the whole image, not just in dominant color. Otherwise
+#' image size has an effect on the absolute magnitude of the number.
+#' In the original article the values like 0.0020936 don't quite match
+#' with the definitions.
+#' @param img.hsv photo as an HSV image array (\emph{m} x \emph{n} x 3).
+#' @return a list of estimated color model parameters:
+#'   \itemize{
+#'     \item \code{"mu"}: mean of von Mises distribution of color hues
+#'       (in radians: \emph{0} is red, \emph{pi/2} is green,
+#'       \emph{pi} is cyan, \emph{3*pi/2} is purple)
+#'     \item \code{"kappa"}: compactness of von Mises distribution of
+#'       color hues (a kind of "standard deviation"),
+#'       with full hue circle as \emph{2*pi}. If hues are quite uniform,
+#'       \code{kappa} may overshoot to >10.
+#'     \item \code{"pi"}: proportion of pixels whose hue is within
+#'       the dominant hue interval.
+#'     \item \code{"ds"}: spatial dispersion of the dominant color.
+#'     \item \code{"custom.ds"}: how much \code{ds} exceeds randomly
+#'       distributed null hypothesis.
+#'   }
+#'   For an image that is (nearly) grayscale, the values are \code{NA} --
+#'   no hue is defined for any pixel.
+#' @examples
+#' set.seed(42)
+#' k <- 100*200
+#' a <- array(runif(k), dim=c(100,200,3))  # all-gray image
+#' all(is.na(dispersionDominantColor(toHSV(a))))
+#' b <- array(c(0.3+0.6*runif(k), 0.55+0.4*runif(k), runif(k)), dim=c(100,200,3))  # lime-ish image
+#' col.b <- dispersionDominantColor(toHSV(b))
+#' all(abs(unlist(col.b) - c(1.844495, 1.048321, 0.57475, 81.17045, 1)) < 1e-4)
+#' viewDDC(NULL, toHSV(b), col.b$mu, col.b$kappa)  # plot, source from "viewer.R"
+#' 
+#' @export
 
 # COMMENTS:
 
@@ -158,13 +288,6 @@ mdweVertical <- function(img) {
 #spatial.dispersion <- ds / k
 ## OR
 #spatial.dispersion <- sum(sapply(1:length(row.idx), function(i) sqrt((row.idx - row.idx[i])^2 + (col.idx - col.idx[i])^2))) / npdc^2
-
-## This is an average distance between pixels that have dominant color.
-## I still think the value should be normalized somehow, for example dividing
-## by an average distance between two pixels in the whole image, not just
-## in dominant color. Otherwise image size has an effect on the absolute
-## magnitude of the number. In the original article the values
-## like 0.0020936 don't quite match with the definitions.
 
 dispersionDominantColor <- function(img.hsv) {
   hues <- degreeToRadian(extractHSVChannel(img.hsv, HUE))  # convert from degrees to radians
@@ -206,8 +329,8 @@ dispersionDominantColor <- function(img.hsv) {
   smpl <- function(values) sample(values, num.samples, replace=TRUE)
   approx.dist <- mean(sqrt((smpl(1:nr) - smpl(1:nr))^2 + (smpl(1:nc) - smpl(1:nc))^2))
   
-  # NPDC Euclidean distance approximation by random sample
-  px.1 <- smpl(1:npdc.nr)
+  # NPDC Euclidean distance approximation by random sample.
+  px.1 <- smpl(1:npdc.nr)  # I think length(npdc.nr) == length(npdc.nc) so ok.
   px.2 <- smpl(1:npdc.nr)
   npdc.approx.dist <- mean(sqrt((row.idx[px.1] - row.idx[px.2])^2 + (col.idx[px.1] - col.idx[px.2])^2))
 

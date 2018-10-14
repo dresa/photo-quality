@@ -38,6 +38,7 @@ radianToDegree <- function(rad) rad*(360/(2*pi))
 #' @export
 degreeToRadian <- function(degree) degree*(2*pi/360)
 
+
 #' Binary search
 #' 
 #' Perform a binary search on an increasing function until
@@ -89,6 +90,65 @@ binarySearch <- function(func, target, low, high, tol=1e-12, max.iter=100) {
       iter <- iter + 1
   }
   return(NULL)
+}
+
+
+#' @rdname minimamaxima
+#' @name minimamaxima
+#' @aliases localMinimaIndices
+#' @aliases localMaximaIndices
+#' @title Identify local minima and maxima within a vector.
+#' @description
+#' Given a numeric vector \code{v}, return all indices \emph{i}
+#' for which \code{v[i]} is a local minimum (maximum), being
+#' smaller (larger) than neighboring values \code{v[i-1]} and \code{v[i+1]}.
+#' The comparison may be either strict or non-strict (equality counts).
+#' For the boundary items at indices \emph{1} and \emph{length(v)},
+#' we assume their values are equal
+#' to imaginary out-of-bounds values \code{v[0]} and \code{v[length(v)+1]}.
+#' @param vec numeric vector
+#' @param strict [boolean] do we use strict "<" operator instead
+#'   of "<=" when comparing to neighboring values. (default is \code{FALSE})
+NULL
+
+
+#' \code{localMinimaIndices} identifies local minima in a vector.
+#' @return \code{localMinimaIndices} returns indices on \code{vec} that are
+#' local minima (strict or not), or an empty vector if there is none (strictly).
+#' @examples
+#' all(localMinimaIndices(c(11,12,14,13,15,15,17,16)) == c(1,4,6,8))
+#' all(localMinimaIndices(c(11,12,14,13,15,15,17,16), strict=TRUE) == c(4))
+#' all(localMinimaIndices(c(11,11,11)) == 1:3)
+#' all(length(localMinimaIndices(c(11,11,11), strict=TRUE)) == 0)
+#' 
+#' @rdname minimamaxima
+#' @export
+localMinimaIndices <- function(vec, strict=FALSE) {
+  n <- length(vec)
+  d <- c(0, diff(vec), 0)
+  if (strict) return(which(d[1:n] <  0 & d[2:(n+1)] >  0))
+  else {      return(which(d[1:n] <= 0 & d[2:(n+1)] >= 0)) }
+}
+
+
+#' \code{localMaximaIndices} identifies local maxima in a vector.
+#' @return \code{localMaximaIndices} returns indices on \code{vec} that are
+#' local maxima (strict or not), or an empty vector if there is none (strictly).
+#' @examples
+#' all(localMaximaIndices(c(11,12,14,13,15,15,17,16)) == c(3,5,7))
+#' all(localMaximaIndices(c(11,12,14,13,15,15,17,16), strict=TRUE) == c(3,7))
+#' all(localMaximaIndices(c(11,10,14,13,15,15,17,18)) == c(1,3,5,8))
+#' all(localMaximaIndices(c(11,10,14,13,15,15,17,18), strict=TRUE) == c(3))
+#' all(localMaximaIndices(c(11,11,11)) == 1:3)
+#' all(length(localMaximaIndices(c(11,11,11), strict=TRUE)) == 0)
+#' 
+#' @rdname minimamaxima
+#' @export
+localMaximaIndices <- function(vec, strict=FALSE) {
+  n <- length(vec)
+  d <- c(0, diff(vec), 0)
+  if (strict) return(which(d[1:n] >  0 & d[2:(n+1)] <  0))
+  else {      return(which(d[1:n] >= 0 & d[2:(n+1)] <= 0)) }
 }
 
 
