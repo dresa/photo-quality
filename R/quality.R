@@ -345,6 +345,35 @@ dispersionDominantColor <- function(img.hsv) {
 # A set of basic measures, as described in slideshow names
 # Automatic photo quality assessment --- Taming subjective problems with hand-coded metrics
 
+
+#' Exposure quality measure (simple).
+#' 
+#' A simplistic measure of exposure quality in photos. The measurement is
+#' based on the average luminosity on all pixels, mapped onto quality scores
+#' by using a Beta distribution. Photos with middle-level exposures will
+#' receive high scores (close to 1); photos that are on average overly
+#' underexposed or overly overexposed will receive low scores (close to 0).
+#' 
+#' Inspiration from \emph{"Automatic photo quality assessment --
+#' Taming subjective problems with hand-coded metrics"}:
+#' 
+#' \url{https://studylib.net/doc/17770925/automatic-photo-quality-assessment-taming-subjective-prob...}
+#' 
+#' Note that photos that contain only black and white may have medium-level
+#' exposure on average.
+#' @param img photo as an RGB image array (\emph{m} x \emph{n} x 3).
+#' @return numeric quality measure for photo exposure, ranging from 0 to 1 (best).
+#' @examples
+#' img <- array(sample(4:10, 40*80, replace=TRUE)/10, dim=c(40,80,3))  # high-exposure
+#' quality <- basicExposureLevel(img)
+#' abs(quality - 0.84) < 1e-2
+#' scoref <- function(x) dbeta(x, 2, 2) / dbeta(0.5, 2, 2)
+#' expo <- seq(0, 1, length.out=100)
+#' plot(expo, scoref(expo), type='l', col='blue', xlab='exposure', ylab='quality')
+#' abline(v=mean(luminance(img)), col='red', lty=3)
+#' abline(h=quality, col='red', lty=3)
+#' 
+#' @export
 basicExposureLevel <- function(img) {
   # Using mean pixel intensity (interpreted via luminance) to determine
   # whether we have a "correct" exposure. An underexposured image has mean
@@ -358,17 +387,83 @@ basicExposureLevel <- function(img) {
   return(exposure.score)
 }
 
+
+#' RMS Contrast Measure.
+#' 
+#' Computes the \emph{RMS contrast} (Root Mean Square) for a photo. It is the
+#' standard deviation of pixel intensities, where intensities are measured
+#' by their luminance values.
+#' 
+#' Standard method, see for example
+#' \url{https://en.wikipedia.org/wiki/Contrast_(vision)}
+#' 
+#' @param img photo as an RGB image array (\emph{m} x \emph{n} x 3)
+#'   with values from \code{[0;1]}.
+#' @return numeric RMS contrast, ranging from 0 to 0.5 (most constrasty).
+#' @examples
+#' # high-exposure grayscale example
+#' img <- array(sample(4:10, 40*80, replace=TRUE)/10, dim=c(40,80,3))
+#' abs(basicRmsContrast(img) - 0.2) < 1e-3
+#' 
+#' # black and white maximum contrast example
+#' img.bw <- array(sample(0:1, 40*80, replace=TRUE), dim=c(40,80,3))
+#' abs(basicRmsContrast(img.bw) - 0.5) < 1e-3
+#' 
+#' @export
 basicRmsContrast <- function(img) {
-  # RMS contrast
-  # https://en.wikipedia.org/wiki/Contrast_(vision)
   # i <- luminance(img)
   # return(sqrt(sum((i - mean(i))^2) / (nrow(i)*ncol(i))))
   return(sd(luminance(img)))
 }
 
+
+#' Interval Contrast Measure.
+#' 
+#' Computes the \emph{Interval Contrast} measure for a photo. It is the
+#' difference between lower and upper quantiles of the image's
+#' luminance values --  it is related to dynamic range of the image.
+#' 
+#' The method is as follows.
+#' Given an image and an interval size (proportion of pixels) \emph{s}:
+#' \itemize{
+#'   \item Compute luminance values \emph{L} for all pixels and
+#'         sort them in increasing order.
+#'   \item Find the lower quantile at \emph{(1 - s) / 2} on \emph{L}
+#'   \item Find the upper quantile at \emph{1 - (1 - s) / 2} on \emph{L}
+#'   \item Return the difference between upper and lower quantiles.
+#' }
+#' 
+#' Inspiration from \emph{"Automatic photo quality assessment --
+#' Taming subjective problems with hand-coded metrics"}:
+#' 
+#' \url{https://studylib.net/doc/17770925/automatic-photo-quality-assessment-taming-subjective-prob...}
+#' 
+#' @param img photo as an RGB image array (\emph{m} x \emph{n} x 3)
+#'   with values from \code{[0;1]}.
+#' @param interval interval size, as proportion of pixels of the image that
+#'   belong to the interval. Default value is 0.95, which
+#'   leaves 2.5\% of pixels to tails on both ends of luminance distribution.
+#' @return numeric \emph{interval contrast}, ranging from 0 to 1 (most constrasty).
+#' @examples
+#' # Grayscale example of medium-level dynamic range
+#' img <- array(runif(40*80, 0.4, 1.0), dim=c(40,80,3))
+#' expected <- 0.95 * (1 - 0.4)  # 0.57
+#' abs(basicIntervalContrast(img) - expected) < 1e-2
+#' 
+#' expected.half <- 0.5 * (1 - 0.4)  # 0.30
+#' abs(basicIntervalContrast(img, 0.5) - expected.half) < 1e-2
+#' 
+#' # Range between maximum and minimum luminances
+#' abs(basicIntervalContrast(img, interval=1.0) - 0.6) < 1e-2
+#' 
+#' # Maximum contrast example
+#' img.max <- array(sample(0:1, 40*80, replace=TRUE), dim=c(40,80,3))
+#' abs(basicIntervalContrast(img.max) - 1.0) < 1e-6
+#' 
+#' @export
 basicIntervalContrast <- function(img, interval=0.95) {
   # Slides
-  tail.prob <- (1 - interval) / 2
+  tail.prob <- (1 - interval) / 2  # two-sided distribution
   i <- sort(luminance(img))
   q <- quantile(i, c(tail.prob, 1 - tail.prob))
   return(as.numeric(diff(q)))
