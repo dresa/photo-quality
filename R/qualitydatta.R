@@ -11,6 +11,7 @@
 
 library(emdist)    # Earth Mover's Distance
 library(waveslim)  # Discrete Wavelet Transform 2D
+library(mmand)     # Segmented values
 #library(NbClust)   # Optimal number of clusters
 
 source('R/photo.R')
@@ -21,9 +22,6 @@ source('R/viewer.R')
 source('R/mdl.R')
 source('R/convexity.R')
 
-# Datta 1: Average pixel intensity
-##########
-avgIntensity <- function(img.hsv) { mean(extractHSVChannel(img.hsv, VALUE)) }
 
 
 # Datta 2: Colorfulness
@@ -49,7 +47,7 @@ allocateColorsToBuckets <- function(img, n) {
   # Example: bucket ID's [0;n-1] have low Blue and Green, while Red varies from low to high.
   # Frequency of bucket-colors within the RGB image:
   bucket.freqs <- tabulate(genBucketCodes(), nbins=n^3)
-
+  
   # Debugging: show distribution of color-buckets:
   if (DEBUG_BUCKETS) {
     signs <- function(ch, x) paste(rep(ch, x), collapse='')
@@ -62,7 +60,7 @@ allocateColorsToBuckets <- function(img, n) {
     p <- bucket.freqs/sum(bucket.freqs)
     print(paste('Bucket entropy:', -sum(p*log2(p), na.rm=TRUE)))
   }
-
+  
   return(bucket.freqs)  # variable D2 in original article
   # Note that 'findInterval' is 8x faster than 'cut' in this case. Also, 'tabulate' is 8x faster
   # than 'table' function (because of implicit int->str).
@@ -108,17 +106,16 @@ createEMDProblem <- function(bucket.luv, bucket.freqs, n, target='all') {
   from.w[is.na(from.w)] <- 0    # missing buckets have zero frequency
   names(from.w) <- 1:n.buckets  # just for debugging
   to.w <- switch(tolower(target),
-    uniform={setNames(replicate(n.buckets, 1/n.buckets), 1:n.buckets)},
-    grey={
-      g <- integer(n.buckets)  # zeros
-      # use grey buckets; with n=4, buckets are 1, 22, 43, 64, from black to white
-      GREY_BUCKETS <- seq(1, n.buckets, (n.buckets-1)/(n-1))
-      g[GREY_BUCKETS] <- 1/length(GREY_BUCKETS)
-      setNames(g, 1:n.buckets)}
+                 uniform={setNames(replicate(n.buckets, 1/n.buckets), 1:n.buckets)},
+                 grey={
+                   g <- integer(n.buckets)  # zeros
+                   # use grey buckets; with n=4, buckets are 1, 22, 43, 64, from black to white
+                   GREY_BUCKETS <- seq(1, n.buckets, (n.buckets-1)/(n-1))
+                   g[GREY_BUCKETS] <- 1/length(GREY_BUCKETS)
+                   setNames(g, 1:n.buckets)}
   )
   #if (lower(target) == 'all') to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed target
   #else if (lower(target) == 'grey') to.w <- replicate(n.buckets, 1 / n.buckets)  # evenly distributed target
-  names(to.w) <-
   return(list(locations=locations, from.weights=from.w, to.weights=to.w))
 }
 
@@ -145,17 +142,43 @@ replicateDistance <- function(emd.solution, locations, n) {
 
 # Datta 2 measure: colorfulness for an RGB image, as measured in LUV space
 # n is the number of buckets per channel, in total n^3 buckets
+###########
+#' Colorfulness of an image (Datta measure 2)
+#' 
+#' Compute \emph{colorfulness} of an image: the distance to a reference
+#' image that has uniformly distributed colors in LUV color space.
+#' 
+#' For description of Datta measures, refer to \url{https://doi.org/10.1007/11744078_23}
+#' 
+#' @param img photo as an RGB image array (\emph{m} x \emph{n} x 3)
+#' @param mode name of the reference image composition, distribution of colors
+#' @param n number of color buckets; uses \emph{n^3} buckets to
+#'   count frequencies
+#' @return numeric \emph{colorfulness} measure; the maximum value depends
+#'   on the number of buckets \emph{n^3}.
+#' @examples
+#' set.seed(1)
+#' img.rgb <- array(runif(4*5*3, 0.4, 1.0), dim=c(4,5,3))
+#' abs(colorfulness(img.rgb) - 41.06221) < 1e-5
+#' set.seed(1)
+#' img.unif <- array(runif(4*5*3), dim=c(4,5,3))
+#' abs(colorfulness(img.unif) - 29.65533) < 1e-5
+#' set.seed(1)
+#' img.purple <- array(c(rep(1, 4*5), runif(4*5), runif(4*5, 0.5, 1)), dim=c(4,5,3))
+#' abs(colorfulness(img.purple) - 56.10874) < 1e-5
+#' 
+#' @export
 colorfulness <- function(img, mode='uniform', n=4) {
   # Preliminary constants
   EMD_DEBUG <- FALSE
-
+  
   # Label image pixels with a number of color-buckets and create an EMD problem instance:
   bucket.freqs <- allocateColorsToBuckets(img, n)
   bucket.luv <- bucketColorsLUV(n)
   p <- createEMDProblem(bucket.luv, bucket.freqs, n, mode)
   # Solve EMD instance. We can choose 'from' and 'to' either way (Euclidean is symmetric).
   e <- emdw(p$locations, p$from.weights, p$locations, p$to.weights, dist='euclidean', flows=TRUE)
-
+  
   # Debugging: given the flows, replicate the EMD distance?
   if (EMD_DEBUG) {
     print(bucket.luv)
@@ -163,37 +186,139 @@ colorfulness <- function(img, mode='uniform', n=4) {
     rcost <- replicateDistance(e, p$locations, n)
     print(paste('DEBUG: Normalized EMD cost (replicated):', rcost))
   }
-
+  
   return(as.numeric(e))  # drop flow information
 }
 
 
-# Datta 3: Average pixel saturation
-##########
-avgSaturation <- function(img.hsv) { mean(extractHSVChannel(img.hsv, SATURATION)) }
+#' @rdname avgHsvPixels
+#' @name avgHsvPixels
+#' @aliases avgHue
+#' @aliases avgSaturation
+#' @aliases avgIntensity
+#' @aliases avgCentralHue
+#' @aliases avgCentralSaturation
+#' @aliases avgCentralIntensity
+#' @title
+#' Pixel HSV Averages (Datta measures 1 & 3--7)
+#' @description
+#' Compute average HSV (hue, saturation, value) statistics for pixels
+#' within a full image or in a central area of an image, as defined
+#' by \emph{Datta measures 1 & 3--7}.
+#' @details
+#' For description of Datta measures, refer to \url{https://doi.org/10.1007/11744078_23}
+#' 
+#' In and \code{avgHue} and \code{avgCentralHue}, the pixels that do not
+#' have a hue, such as grayscale pixels, are excluded. The functions use the
+#' \emph{arithmetic} definition of "mean" rather than a \emph{circular} one.
+#' @param img.hsv photo as an HSV image array (\emph{m} x \emph{n} x 3)
+#' @examples
+#' set.seed(1)
+#' img.rgb <- array(runif(4*5*3, 0.4, 1.0), dim=c(4,5,3))
+#' img.hsv <- toHSV(img.rgb)
+#' 
+NULL
 
 
 # Datta 4: Average pixel hue (circular)
 ##########
+#' @description
+#' \code{avgHue} computes the average pixel \strong{hue}
+#' in an image, as in \emph{Datta measure 4}.
+#' @return
+#'   \code{avgHue} returns the mean hue of pixels, within \code{[0;360]}
+#'   degrees or \code{[0;2*pi]} radians.
+#' @examples
+#' abs(avgHue(img.hsv) - 201.3679604) < 1e-6
+#' abs(avgHue(toHSV(img.rgb, radians=TRUE)) - 201.3679604/360*2*pi) < 1e-6
+#' 
+#' @rdname avgHsvPixels
+#' @export
 avgHue <- function(img.hsv) { mean(extractHSVChannel(img.hsv, HUE), na.rm=TRUE) }
 
 
-# Datta 5: Average pixel hue (circular) in the middle part of the image [one-third,two-thirds]
+# Datta 3: Average pixel saturation
 ##########
+#' @description
+#' \code{avgSaturation} computes the average pixel \strong{saturation}
+#' in an image, as in \emph{Datta measure 3}.
+#' @return \code{avgSaturation} returns the mean saturation of pixels, ranging from 0 to 1.
+#' @examples
+#' abs(avgSaturation(img.hsv) - 0.3379017) < 1e-6
+#' 
+#' @rdname avgHsvPixels
+#' @export
+avgSaturation <- function(img.hsv) { mean(extractHSVChannel(img.hsv, SATURATION)) }
+
+
+# Datta 1: Average pixel intensity
+##########
+#' @description
+#' \code{avgIntensity} returns the average pixel \strong{intensity}
+#' in an image, as in \emph{Datta measure 1}.
+#' @return
+#'   \code{avgIntensity} returns the mean intensity (\emph{value}) of pixels, ranging from 0 to 1.
+#' @examples
+#' abs(avgIntensity(img.hsv) - 0.852) < 1e-3
+#' 
+#' @rdname avgHsvPixels
+#' @export
+avgIntensity <- function(img.hsv) { mean(extractHSVChannel(img.hsv, VALUE)) }
+
+
 avgCentral <- function(img.hsv.channel) {
   ch <- img.hsv.channel
   mid.cols <- seq(floor(ncol(ch)/3), ceiling(2*ncol(ch)/3))
   mid.rows <- seq(floor(nrow(ch)/3), ceiling(2*nrow(ch)/3))
   return(mean(ch[mid.rows, mid.cols], na.rm=TRUE))
 }
+
+# Datta 5: Average pixel hue (circular) in the middle part of the image [one-third,two-thirds]
+##########
+#' @description
+#' \code{avgCentralHue} computes the average pixel \strong{hue}
+#' in the \strong{central} part an image, as in \emph{Datta measure 5}.
+#' @return
+#'   \code{avgCentralHue} returns the mean hue of pixels in central part,
+#'   within \code{[0;360]} degrees or \code{[0;2*pi]} radians.
+#' @examples
+#' abs(avgCentralHue(img.hsv) - 208.99541170) < 1e-6
+#' abs(avgCentralHue(toHSV(img.rgb, radians=TRUE)) - 208.99541170/360*2*pi) < 1e-6
+#' 
+#' @rdname avgHsvPixels
+#' @export
 avgCentralHue <- function(img.hsv) { return(avgCentral(extractHSVChannel(img.hsv, HUE))) }
+
 
 # Datta 6: Average pixel saturation in the middle part of the image
 ##########
+#' @description
+#' \code{avgCentralSaturation} computes the average pixel \strong{saturation}
+#' in the \strong{central} part an image, as in \emph{Datta measure 6}.
+#' @return
+#'   \code{avgCentralSaturation} returns the mean saturation of pixels
+#'   in central part, ranging from 0 to 1.
+#' @examples
+#' abs(avgCentralSaturation(img.hsv) - 0.3177584) < 1e-6
+#' 
+#' @rdname avgHsvPixels
+#' @export
 avgCentralSaturation <- function(img.hsv) { return(avgCentral(extractHSVChannel(img.hsv, SATURATION))) }
+
 
 # Datta 7: Average pixel intensity in the middle part of the image
 ##########
+#' @description
+#' \code{avgCentralIntensity} computes the average pixel \strong{intensity}
+#'  (value) in the \strong{central} part an image, as in \emph{Datta measure 7}.
+#' @return
+#'   \code{avgCentralIntensity} returns the mean intensity (value) of pixels
+#'   in central part, ranging from 0 to 1.
+#' @examples
+#' abs(avgCentralIntensity(img.hsv) - 0.8340243) < 1e-6
+#' 
+#' @rdname avgHsvPixels
+#' @export
 avgCentralIntensity <- function(img.hsv) { return(avgCentral(extractHSVChannel(img.hsv, VALUE))) }
 
 
@@ -228,6 +353,28 @@ waveletDattaFrequencies <- function(img.channel) {
   return(c(freq.1, freq.2, freq.3))
 }  # TODO: should check if "sum of abs" is the correct way of doing this measure.
 
+
+#' Texture of an image (Datta measures 10--21)
+#' 
+#' Compute the \emph{texture} features of an image, as in Datta measures 10--21.
+#' 
+#' For description of Datta measures, refer to \url{https://doi.org/10.1007/11744078_23}
+#' 
+#' @param img.hsv photo as an HSV image array (\emph{m} x \emph{n} x 3)
+#' @return list of twelve numeric \emph{texture} features:
+#'   hues (at three levels 1, 2, and 3), saturation (at three levels),
+#'   value (at three levels), sum of hues, sum of saturations,
+#'   and sum of values. Hues have been rescaled from degrees onto \code{[0;1]}.
+#'   By default three texture levels are computed, but if the image has
+#'   fewer than \emph{2^3=8} rows or columns, some texture levels will
+#'   be \code{NA}.
+#' @examples
+#' set.seed(1)
+#' img.rgb <- array(runif(8*10*3, 0.4, 1.0), dim=c(8,10,3))
+#' expected <- c(0.2303976, 0.255253, 0.1964088, 0.1054641, 0.1160977, 0.1132417, 0.08682113, 0.08736958, 0.1347886, 0.6820594, 0.3348034, 0.3089793)
+#' all(abs(unlist(texture(toHSV(img.rgb))) - expected) < 1e-5)
+#' 
+#' @export
 texture <- function(img.hsv) {
   img.hsv[is.na(img.hsv)] <- 0  # local changes; DWT works only non-NA values
   res <- lapply(HSV, function(channel) waveletDattaFrequencies(extractHSVChannel(img.hsv, channel)))
@@ -248,8 +395,35 @@ texture <- function(img.hsv) {
 }
 
 
+#' @rdname dimFeatures
+#' @name dimFeatures
+#' @aliases sizeFeature
+#' @aliases aspectRatioFeature
+#' @title
+#' Dimensional Photo Features (Datta measures 22 & 23)
+#' @description
+#' Identify dimensional features of an image, as defined
+#' by \emph{Datta measures 22 & 23}.
+#' @details
+#' For description of Datta measures, refer to \url{https://doi.org/10.1007/11744078_23}
+#' @param img photo as an image array (\emph{m} x \emph{n} x ?)
+#' @examples
+#' img <- array(runif(4*5*3, 0.4, 1.0), dim=c(4,5,3))
+#' 
+NULL
+
 # Datta 22: size
 ###########
+#' @description
+#'   \code{sizeFeature} measures image size: rows \strong{plus} columns,
+#'   as in \emph{Datta measure 22}.
+#' @return
+#'   \code{sizeFeature} returns the image size that is \emph{m} \strong{+} \emph{n}.
+#' @examples
+#' sizeFeature(img) == 9
+#' 
+#' @rdname dimFeatures
+#' @export
 sizeFeature <- function(img) {
   d <- dim(img)
   return(d[1] + d[2])
@@ -257,6 +431,22 @@ sizeFeature <- function(img) {
 
 # Datta 23: aspect ratio
 ###########
+#' @description
+#'   \code{aspectRatioFeature} measures the aspect ratio of the image,
+#'   as in \emph{Datta measure 23}.
+#' @return
+#'   \code{aspectRatioFeature} returns the aspect ratio of image dimensions.
+#'   It is a vector of two elements:
+#'   \itemize{
+#'     \item \emph{m/n}, which is the number of rows divided by that of columns
+#'     \item \emph{m/n} or its reciprocal \emph{n/m}, whichever is larger
+#'       (ratio is at least 1)
+#'   }.
+#' @examples
+#' all(aspectRatioFeature(img) == c(4/5, 5/4))
+#' 
+#' @rdname dimFeatures
+#' @export
 aspectRatioFeature <- function(img) {
   d <- dim(img)
   return(c(d[1]/d[2], max(d[1]/d[2], d[2]/d[1])))
@@ -404,8 +594,7 @@ photoSegmentationReconstruct <- function(centers, map, num.rows) {
 
 
 
-# Third try, using a package in a clumsy way, separately for each cluster
-library(mmand)
+# Third try, using "mmand" package in a clumsy way, separately for each cluster.
 
 photoSegmentationComponents <- function(clusters.2d) {
   clusters <- sort(unique(c(clusters.2d)))
@@ -628,6 +817,7 @@ extractConvexShape <- function(shape.rectangular, subimg.rgb, anchor.row=1, anch
 }
 
 # Datta measure 56, "shape convexity"
+###########
 shapeConvexity <- function(conn.components, img.rgb) {
   nr <- nrow(conn.components)
   nc <- ncol(conn.components)
@@ -686,6 +876,37 @@ segmentBlockLocations <- function(conn.components, largest.ids) {
 
 # Datta measures 24--52 based on image segmentation (except 46 & 47)
 ## Datta measure 56, "shape convexity", included
+
+#' Image Region Composition Features (Datta measures 24--45 & 48--52 & 56)
+#' 
+#' Compute regional \emph{composition} features of an image, as in
+#' \emph{Datta measures} 24--45 & 48--52 & 56.
+#' 
+#' For description of Datta measures, refer to \url{https://doi.org/10.1007/11744078_23}
+#' 
+#' @param img.rgb photo as an RGB image array (\emph{m} x \emph{n} x 3)
+#' @param num.segments maximum number of image segments to identify and analyze.
+#' @return numeric \emph{compositional} region features as a list:
+#'   \itemize{
+#'     \item \code{"num.large.patches"}: number of segments that contain
+#'       more than 1\% of image's pixels (Datta 24)
+#'     \item \code{"num.clusters"}: optimal number of segments found (Datta 25)
+#'     \item \code{"avg.patch.hsv"}: average values on HSV dimensions of
+#'       largest segments, or \code{NA} if non-existent (Datta 26--40)
+#'     \item \code{"rel.patch.sizes"}: proportional size of each of the largest
+#'       segments w.r.t. full image size (Datta 41--45)
+#'     \item \code{"segment.positions"}: coded locations of largest segments,
+#'       determined by which cell in a 3x3 grid the segments' mass-centers hit
+#'       (Datta 48--52): 11, 12, 13, 21, 22, 23, 31, 32, or 33.
+#'     \item \code{"segment.distances"}: Esa Junttila's proxy for Datta 48--52:
+#'       distances from image midpoint to segments' mass centers,
+#'       normalized onto \code{[0;1]}
+#'     \item \code{"shape.convexity"}: proportion of image covered by
+#'     almost-convex segments, having sizes at least 0.5\%
+#'     and that compose at least 80\% of their convex hull shapes (Datta 56)
+#'   }
+#' 
+#' @export
 regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.rgb, num.segments=5) {
   nr.img <- nrow(img.rgb)
   nc.img <- ncol(img.rgb)
@@ -735,9 +956,11 @@ regionCompositionFeatures <- functionregionCompositionFeatures <- function(img.r
 
 
 # Datta measures 53--55: Depth-of-field, DOF
+###########
 
 # I'm not quite sure how we should aggragete the different coefficients: wLH, HL, and HH.
 # Now summing them together with the rest of the values.
+
 waveletDattaDof <- function(img.channel) {
   d <- waveletTexture(img.channel)  # Already defined in Datta 10
   num.levels <- attr(d, 'J')
@@ -767,6 +990,34 @@ waveletDattaDof <- function(img.channel) {
   return(dof.indicator)
 }
 
+
+#' Depth-of-field Features of an Image (Datta measures 53--55)
+#' 
+#' Compute depth-of-field (DOF) features in the image,
+#' as in \emph{Datta measures} 53--55, with Esa Junttila's
+#' relative normalization. It measures if there is any extra detail in the
+#' center part, compared to the rest of the image.
+#' 
+#' For description of Datta measures, refer to \url{https://doi.org/10.1007/11744078_23}
+#' 
+#' @param img.hsv image as an HSV image array (\emph{m} x \emph{n} x 3)
+#' @return List of three numeric \emph{DOF} features, one for each of
+#'   HSV channels. The returned values are the deviations from expectation,
+#'   measured by expectation-units:
+#'   \itemize{
+#'     \item uniform photo gets ~0,
+#'     \item center-dominant gets >0,
+#'     \item edge-dominant gets <0.
+#'   }
+#'   Maximum DOF value is 1/(3^2/5^2) - 1 = 1.778 when all detail is in center;
+#'   minimum is -1 (no detail in center).
+#' @examples
+#' set.seed(1)
+#' img <- array(runif(40*60*3, 0.4, 0.6), dim=c(40,60,3))  # uniform starting-point
+#' img[15:25, 20:40, 1:3] <- rnorm(11*21*3, 0.5, 0.15)  # concentration at center
+#' all(abs(unlist(dof(toHSV(img))) - c(-0.1018337, 0.2587495, 0.1880983)) < 1e-5)
+#' 
+#' @export
 dof <- function(img.hsv) {
   img.hsv[is.na(img.hsv)] <- 0  # local changes; DWT works only non-NA values
   res <- lapply(HSV, function(channel) waveletDattaDof(extractHSVChannel(img.hsv, channel)))
