@@ -1,25 +1,156 @@
 ##
 ## Common functions for general use
 ##
-## Esa Junttila, 2016-03-23
+## Esa Junttila, 2016-03-23 (originally)
 
 
+#' Bound the values of a vector.
+#' 
+#' Return a new vector where the values of \code{x} are bounded by given
+#' limits and otherwise kept intact.
+#' @param x Numeric vector whose values we wish to bound.
+#' @param low Lower numeric limit.
+#' @param high Higher numeric limit.
+#' @return bounded vector where for each \code{x_i} in \code{i=1,2,...} we have
+#'   \itemize{
+#'     \item \code{if low <= x_i <= high}, then \code{x_i}
+#'     \item \code{if x_i < low}, then \code{low}
+#'     \item \code{if high < x_i}, then \code{high}.
+#'   }
+#' @export
 limit <- function(x, low, high) pmax(low, pmin(high, x))
 
+
+#' Convert radian angles to degrees.
+#' 
+#' @param rad angles as numeric radians within \code{[0;2*pi[}
+#' @return angles as numeric degrees within \code{[0;360[}
+#' @seealso \code{\link{degreeToRadian}}
+#' @export
 radianToDegree <- function(rad) rad*(360/(2*pi))
 
+
+#' Convert degree angles to radians.
+#' 
+#' @param degree angles as numeric degrees within \code{[0;360[}
+#' @return angles as numeric radians within \code{[0;2*pi[}
+#' @seealso \code{\link{radianToDegree}}
+#' @export
 degreeToRadian <- function(degree) degree*(2*pi/360)
 
-binarySearch <- function(func, target, low, high, tol=1e-12) {
-  if ( high < low ) { return(NULL) }
-  else {
-    mid <- (low + high) / 2
-    func.val <- func(mid)
-    if (abs(func.val - target) < tol) { return(mid) }
-    else if (func.val > target) { binarySearch(func, target, low, mid) }
-    else if (func.val < target) { binarySearch(func, target, mid, high) }
+
+#' Binary search
+#' 
+#' Perform a binary search on an increasing function until
+#' target value is within an absolute tolerance. The goal is to
+#' find such a value \code{x} within search window \code{[low,high]}
+#' that \code{y:=func(x)} is closer to \code{target} than
+#' given absolute tolerance. The method has logarithmic time complexity.
+#' 
+#' @param func Function that accepts a single numeric argument within
+#'             \code{[low,high]} and is \strong{increasing} in that range.
+#' @param target Target numeric value for \code{y:=func(x)}.
+#' @param low Minimum numeric value of search window for \code{x}.
+#' @param high Maximum numeric value of search window for \code{x}.
+#' @param tol [optional] Absolute numeric tolerance; when abolute error is
+#'   smaller than tolerance, stop search and return a solution.
+#'   Default is \code{1e-12} which may need fine-tuning if function has
+#'   very small or large derivatives.
+#' @param max.iter [optional] Maximum number of iterations until we give up.
+#'   Default is 200 (splits).
+#' @return
+#'   Return value \code{x} within \code{[low,high]} such that
+#'   \code{|func(x) - target| < tol}.
+#'   
+#'   Return \code{NULL} if target cannot be found (because target value
+#'   is not within the search window or function is not increasing).
+#' @examples
+#' binarySearch(function(x) 2*x - 4, 0, -1, +3)
+#' binarySearch(function(x) x^2 - 2, 3, 0, +3)
+#' binarySearch(sqrt, 0, 0, +1, tol=1e-6)
+#' binarySearch(sqrt, 0, 0, +1)
+#' f <- function(x) x^3 + 2*x^2 - 8*x
+#' binarySearch(f, 5, -4, +3)  # non-increasing, ambiguous
+#' binarySearch(f, 5, -2, +1)  # err: decreasing function, no solution
+#' binarySearch(f, -3, 2, 3)  # err: solution not found in window
+#' binarySearch(sqrt, 0, 0, +1, tol=1e-18)  # err: floating point precision
+#' @export
+#'
+binarySearch <- function(func, target, low, high, tol=1e-12, max.iter=100) {
+  a <- low
+  b <- high
+  iter <- 1
+  while (a <= b && iter <= max.iter) {
+      mid <- (a + b) / 2
+      func.val <- func(mid)
+      if (abs(func.val - target) < tol) { return(mid) }
+      else if (a == b) { break }
+      else if (func.val > target) { b <- mid }
+      else if (func.val < target) { a <- mid }
+      iter <- iter + 1
   }
+  return(NULL)
 }
+
+
+#' @rdname minimamaxima
+#' @name minimamaxima
+#' @aliases localMinimaIndices
+#' @aliases localMaximaIndices
+#' @title Identify local minima and maxima within a vector.
+#' @description
+#' Given a numeric vector \code{v}, return all indices \emph{i}
+#' for which \code{v[i]} is a local minimum (maximum), being
+#' smaller (larger) than neighboring values \code{v[i-1]} and \code{v[i+1]}.
+#' The comparison may be either strict or non-strict (equality counts).
+#' For the boundary items at indices \emph{1} and \emph{length(v)},
+#' we assume their values are equal
+#' to imaginary out-of-bounds values \code{v[0]} and \code{v[length(v)+1]}.
+#' @param vec numeric vector
+#' @param strict [boolean] do we use strict "<" operator instead
+#'   of "<=" when comparing to neighboring values. (default is \code{FALSE})
+NULL
+
+
+#' \code{localMinimaIndices} identifies local minima in a vector.
+#' @return \code{localMinimaIndices} returns indices on \code{vec} that are
+#' local minima (strict or not), or an empty vector if there is none (strictly).
+#' @examples
+#' all(localMinimaIndices(c(11,12,14,13,15,15,17,16)) == c(1,4,6,8))
+#' all(localMinimaIndices(c(11,12,14,13,15,15,17,16), strict=TRUE) == c(4))
+#' all(localMinimaIndices(c(11,11,11)) == 1:3)
+#' all(length(localMinimaIndices(c(11,11,11), strict=TRUE)) == 0)
+#' 
+#' @rdname minimamaxima
+#' @export
+localMinimaIndices <- function(vec, strict=FALSE) {
+  n <- length(vec)
+  d <- c(0, diff(vec), 0)
+  if (strict) return(which(d[1:n] <  0 & d[2:(n+1)] >  0))
+  else {      return(which(d[1:n] <= 0 & d[2:(n+1)] >= 0)) }
+}
+
+
+#' \code{localMaximaIndices} identifies local maxima in a vector.
+#' @return \code{localMaximaIndices} returns indices on \code{vec} that are
+#' local maxima (strict or not), or an empty vector if there is none (strictly).
+#' @examples
+#' all(localMaximaIndices(c(11,12,14,13,15,15,17,16)) == c(3,5,7))
+#' all(localMaximaIndices(c(11,12,14,13,15,15,17,16), strict=TRUE) == c(3,7))
+#' all(localMaximaIndices(c(11,10,14,13,15,15,17,18)) == c(1,3,5,8))
+#' all(localMaximaIndices(c(11,10,14,13,15,15,17,18), strict=TRUE) == c(3))
+#' all(localMaximaIndices(c(11,11,11)) == 1:3)
+#' all(length(localMaximaIndices(c(11,11,11), strict=TRUE)) == 0)
+#' 
+#' @rdname minimamaxima
+#' @export
+localMaximaIndices <- function(vec, strict=FALSE) {
+  n <- length(vec)
+  d <- c(0, diff(vec), 0)
+  if (strict) return(which(d[1:n] >  0 & d[2:(n+1)] <  0))
+  else {      return(which(d[1:n] >= 0 & d[2:(n+1)] <= 0)) }
+}
+
 
 # Misunderstood an article. Obsolete.
 # Bessel function of the first kind.
@@ -28,26 +159,75 @@ binarySearch <- function(func, target, low, high, tol=1e-12) {
 #besselJ <- function(alpha, x) sum(sapply(0:40, function(k) (-x^2/4)^k/factorial(k)/gamma(alpha+k+1)*(x/2)^alpha))
 #invertedBesselJ <- function(alpha, y, low=-1.84, high=1.84) binarySearch(function(x) besselJ(alpha, x), y, low, high, tol=1e-6)
 
-#Evaluates the first and zeroth order Bessel functions of the first kind at a specified non-negative real
-#number, and returns the ratio. [Related to circularity]
-#See: https://cran.r-project.org/web/packages/circular/circular.pdf
-#https://r-forge.r-project.org/scm/viewvc.php/pkg/R/A1.R?view=markup&root=circular
+
+#' @rdname A1
+#' @name A1
+#' @title Ratio of Bessel functions of the first kind.
+#' @details These functions are related to circularity (estimating
+#'   maximum-likelihood on Von Mises distribution),
+#'   but I'm not sure about details.
+NULL
+
+
+#' @rdname A1
+#' @title Ratio of Bessel functions
+#' @description \code{A1} evaluates the first and zeroth order Bessel
+#'   functions of the first kind at a specified non-negative real number,
+#'   and returns the ratio.
+#' @param kappa non-negative concentration arg in Von Mises distribution (?)
+#' @return \code{A1} returns ratio of evaluated Bessel functions.
+#' @seealso
+#'   \url{https://cran.r-project.org/web/packages/circular/circular.pdf}
+#'   
+#'   \url{https://r-forge.r-project.org/scm/viewvc.php/pkg/R/A1.R?view=markup&root=circular}
+#'   
 A1 <- function(kappa) {
   result <- besselI(kappa, nu=1, expon.scaled = TRUE)/besselI(kappa, nu=0, expon.scaled = TRUE)
   return(result)
 }
-#Inverse function of the ratio of the first and zeroth order Bessel functions of the first kind.  This
-#function is used to compute the maximum likelihood estimate of the concentration parameter of a
-#von Mises distribution.
-# https://r-forge.r-project.org/scm/viewvc.php/pkg/R/A1inv.R?view=markup&root=circular&pathrev=6
+
+
+#' @rdname A1
+#' @title Inverse of ratio of Bessel functions.
+#' @description \code{A1inv} evaluates the inverse function of \code{A1}.
+#'   This function is used to compute the maximum likelihood estimate
+#'   of the concentration parameter of a von Mises distribution.
+#' @param x numeric distribution argument(?)
+#' @return \code{A1inv} returns the estimated kappa (Von Mises concentration).
+#' @seealso
+#'   \url{https://r-forge.r-project.org/scm/viewvc.php/pkg/R/A1inv.R?view=markup&root=circular&pathrev=6}
 A1inv <- function(x) {
   ifelse (0 <= x & x < 0.53, 2 * x + x^3 + (5 * x^5)/6,
           ifelse (x < 0.85, -0.4 + 1.39 * x + 0.43/(1 - x), 1/(x^3 - 4 * x^2 + 3 * x)))
 }
 
 
-# A simplistic way of sampling a single number from vector x.
-# Faster than using sample.int -- perhaps it's designed for vectorized use.
+#' Sample a single value from a vector.
+#' 
+#' Sample a single value from a vector. Sampling takes into account
+#' element-wise probabilities or frequencies; if not given, a uniform
+#' distribution is used as default.
+#'
+#' This is a simplistic way of sampling a single number from vector x.
+#' For some reason this is faster than using \code{sample.int}
+#' -- perhaps it's designed for vectorized use.
+#' @param x Vector of elements
+#' @param prob Probabilities for sampling each item. Vector \code{prob}
+#'   should have same length as \code{x}. Probabilities are normalized,
+#'   so frequencies can be used as well.
+#' @return sampled element from a vector, according to probabilities
+#' @examples
+#' sample.one(2) == 2
+#' all(abs(table(replicate(3000, sample.one(2:4))) - 1000) < 100)
+#' set.seed(1)
+#' sample.one(seq(1.23, 2.34, 0.001)) == 1.524
+#' is.null(sample.one(c()))
+#' tryCatch({sample.one(1:3, c(0.6,0.4)); write("error not catched: x and prob mismatch", stderr())}, error=function(x) TRUE)
+#' set.seed(1)
+#' all(replicate(20, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3))) == c(3,3,4,5,3,5,5,4,4,2,3,3,4,3,5,3,5,5,3,5))
+#' all(abs(table(replicate(10000, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3)))) - 1000*c(1,4,2,3)) < 200)
+#' sample.one(0:4, prob=c(0, 1e-12, 0, 1 - 1e-12, 0)) == 3
+#' @export
 sample.one <- function(x, prob=NULL) {
   if (is.null(prob)) {
     return(x[runif(1) %/% (1 / length(x)) + 1])  # uniform distribution
@@ -56,17 +236,7 @@ sample.one <- function(x, prob=NULL) {
     return(x[findInterval(runif(1), cumsum(prob/sum(prob))) + 1])
   }
 }
-## Tests:
-#stopifnot(sample.one(2) == 2)
-#stopifnot(all(abs(table(replicate(3000, sample.one(2:4))) - 1000) < 100))
-#set.seed(1)
-#stopifnot(sample.one(seq(1.23, 2.34, 0.001)) == 1.524)
-#stopifnot(is.null(sample.one(c())))
-#tryCatch({sample.one(1:3, c(0.6,0.4)); write("error not catched: x and prob mismatch", stderr())}, error=function(x) {})
-#set.seed(1)
-#stopifnot(replicate(20, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3))) == c(3,3,4,5,3,5,5,4,4,2,3,3,4,3,5,3,5,5,3,5))
-#stopifnot(abs(table(replicate(10000, sample.one(2:5, prob=c(0.1,0.4,0.2,0.3)))) - 1000*c(1,4,2,3)) < 200)
-#stopifnot(sample.one(0:4, prob=c(0, 1e-12, 0, 1 - 1e-12, 0)) == 3)
+
 
 # Kmeans++ method for center initialization.
 # The result may contain NA's if all points are in cluster centers.
@@ -95,9 +265,43 @@ initializeCenters <- function(points, k) {
 }
 
 
-# K-means++ clustering algorithm
-# Inspiration from mahito-sugiyama/k-meansp2.R
-# https://gist.github.com/mahito-sugiyama/ef54a3b17fff4629f106
+
+#' K-means++ clustering algorithm.
+#' 
+#' K-means++ clustering algorithm, using custom initial seeding,
+#' random restarts, and base \code{\link{kmeans}} algorithm.
+#' 
+#' The K-means++ method was first introduced by David Arthur and
+#' Sergei Vassilvitskii in 2007.
+#' @param x Data with columns as coordinates and rows as points
+#' @param k Number of clusters
+#' @param iter.max [optional] Maximum number of iterations; default is 10.
+#' @param restarts [optional] Number of separate restarts. The best result
+#'   will be used. Default is one.
+#' @param ... [optional] Other args passed to standard \code{kmeans} algorithm.
+#' @examples
+#' x <- matrix(c(
+#'    1,2,3,
+#'    3,6,-2,
+#'    2,2,2,
+#'    7,6,5,
+#'    20,22,27,
+#'    15,16,17,
+#'    30,12,20,
+#'    50,40,50,
+#'    29,40,45,
+#'    45,50,38), byrow=TRUE, ncol=3)
+#' res <- kmeanspp(x, 3, iter.max=10, restarts=1)
+#' y <- res$cluster
+#' length(unique(y[1:4])) == 1 & length(unique(y[5:7])) == 1 & length(unique(y[8:10])) == 1
+#' @seealso Inspiration from \code{mahito-sugiyama/k-meansp2.R}
+#'
+#'   K-means++ from Wikipedia.
+#'   
+#'   \code{\link{kmeans}} base function.
+#'   
+#'   \url{https://gist.github.com/mahito-sugiyama/ef54a3b17fff4629f106}
+#' @export
 kmeanspp <- function(x, k, iter.max=10, restarts=1, ...) {
   n <- nrow(x)  # number of data points
   res.best <- list(tot.withinss=Inf)  # the best result among restarts

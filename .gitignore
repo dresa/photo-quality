@@ -16,8 +16,11 @@ hs_err_pid*
 .Rproj.user
 R.Rproj
 .Rhistory
+.Rbuildignore
+
 # large dataset of photos
-training-data\originals
+training-data/originals
+examples/puffin-results/
 
 # image files
 *.pdf
@@ -25,4 +28,10 @@ training-data\originals
 *.jpg
 
 # R Profiling
-Rprof.out
+Rprof.out*
+
+# R package files
+man/
+
+# background information
+articles/
