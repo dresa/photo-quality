@@ -62,7 +62,8 @@ of 0.468 between sampled ratings and averages. Based on
 these correlations, we claim,
 **our method works at 90% level when compared to a human performance**.
 
-![Rating predictions](http://www.elisanet.fi/esajakatja/valokuvat/pq/rating_predictions.png)
+![Rating predictions](https://i.imgur.com/xhA8Irj.png)
+<!--- ![Rating predictions](http://www.elisanet.fi/esajakatja/valokuvat/pq/rating_predictions.png) -->
 
 We used the stdev of ratings to measure the prediction error.
 On an average photo in the test set, the differences between
@@ -73,7 +74,8 @@ relative error of only 0.380 stdev's.
 With 95% confidence, the predictions fall within one
 stdev [-0.86;1.07] around average rating, as shown in the plot:
 
-![Prediction error](http://www.elisanet.fi/esajakatja/valokuvat/pq/prediction-rel-err-sd.png)
+![Prediction error](https://i.imgur.com/5sIcaO0.png)
+<!--- ![Prediction error](http://www.elisanet.fi/esajakatja/valokuvat/pq/prediction-rel-err-sd.png) -->
 
 
 ## Example: puffin photo (by andreas612)
@@ -81,7 +83,8 @@ stdev [-0.86;1.07] around average rating, as shown in the plot:
 **Original 755 x 501 JPG photo:**
 
 * Original puffin photo, which I find quite pleasing.
-![Original](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin.jpg)
+![Original](https://i.imgur.com/gyWFfwc.jpg)
+<!--- ![Original](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin.jpg) -->
 
 * Here are the blur-related  measurements we have for the photo.
 The blur measurements show that the photo has good quality. In practice the photos
@@ -102,13 +105,15 @@ one saves us the trouble of pixel-peeping the minor differences between candidat
 * The image below shows the hues in the photo. The block-like structure probably originates from the JPEG compression.
 In the HSV color space the variation within those blocks is fully conveyed by the Saturation and
 Value dimensions. Note that colors that are almost white or black are quite insensitive to hue.
-![Hues](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-hue.png)
+![Hues](https://i.imgur.com/YMngr1D.png)
+<!--- ![Hues](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-hue.png) -->
 
 * Let's have a look at the hue amounts in a polar coordinates.
 The image shows that the most dominant hues are lime green and orange.
 A best-fit von Mises distribution (black line) is used to identify dominating hues.
 
-![Hue Histogram](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-hue-histogram.png)
+![Hue Histogram](https://i.imgur.com/xJW1ze6.png)
+<!--- ![Hue Histogram](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-hue-histogram.png) -->
 
 
 | *Hue Measurements* | *Value* | *Explanation* |
@@ -128,8 +133,10 @@ natural colors, such as blue sky and green forest, from an incorrect color tempe
 A photograph may very well contain both, and still be of a high quality.
 * In the sharpness image the sharpest pixels (white) are those at the strong edges:
 ![Sharpness](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-sharpness.png)
+<!--- ![Sharpness](https://i.imgur.com/NWIbF4a.png) -->
 * In the blurriness image the background of the photo appears as highly blurry (white):
-![Blurriness](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-blurriness.png)
+![Blurriness](https://i.imgur.com/UtrSK2A.png)
+<!--- ![Blurriness](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-blurriness.png) -->
 
 **Image segmentation:**
 * Image segmentation offers a way to split the image so that objects
@@ -140,12 +147,15 @@ simultaneously split the image into distinguishable parts.
 each of which corresponds to a single color. Using these clustered colors, the image has 20212 connected
 color segments, especially below in the grass area. Here they are, each shown with a random
 color to make them stand out:
-![Clustered segments](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-connected-segments-20212-from-26-clusters.png)
+![Clustered segments](https://i.imgur.com/TtNq9lw.png)
+<!--- ![Clustered segments](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-connected-segments-20212-from-26-clusters.png) -->
 * In the connected segments image, we show ten largest connected components against a black background:
-![Largest segments](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-largest-connected-components-10.png)
+![Largest segments](https://i.imgur.com/GtDj4sC.png)
+<!--- ![Largest segments](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-largest-connected-components-10.png) -->
 * In the reconstructed image we have used only 26 clusters, that is colors,
 to reconstruct the original photo:
-![Reconstructed from clusters](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-reconstructed-26-clusters.png)
+![Reconstructed from clusters](https://i.imgur.com/6YDwEeI.png)
+<!--- ![Reconstructed from clusters](http://www.elisanet.fi/esajakatja/valokuvat/pq/puffin-reconstructed-26-clusters.png) -->
 
 **Exposure and contrast:**
 
